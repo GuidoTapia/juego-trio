@@ -157,7 +157,7 @@ io.on("connection", (socket) => {
       const room = rooms.get(code);
       if (!room) throw new Error("Sala inexistente");
       if (room.hostId !== socket.id) throw new Error("Solo el anfitrión puede añadir bots");
-      const names = ["Ada", "Babbage", "Lovelace", "Turing", "Hopper", "Knuth"];
+      const names = ["Alan", "Babbage", "Lovelace", "Turing", "Hopper", "Knuth"];
       const used = new Set(room.players.map((p) => p.name.toLowerCase()));
       const base =
         names.find((n) => !used.has(`${n} 🤖`.toLowerCase())) ||
