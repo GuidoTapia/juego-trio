@@ -57,6 +57,32 @@ html, body {
   box-shadow: var(--shadow);
   text-align: center;
 }
+/* Header strip on the home screen — just hosts the language selector at the
+   top-right of the viewport so it sits like a normal app-wide control. */
+.home-topbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+}
+/* Used in every topbar to group the right-side controls (language + leave). */
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lang-select {
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid #c8b97a;
+  background: white;
+  color: #444;
+  cursor: pointer;
+}
+.lang-select:hover { border-color: var(--accent); }
+#screen-home { position: relative; }
 
 .logo {
   font-size: 72px;
@@ -122,16 +148,19 @@ input[type="text"]:focus {
   font-weight: 700;
   text-align: center;
   width: 130px;
+  width: 100%; 
 }
 
+/* Stacked vertically so the UI doesn't break when a button's label is wider
+   in another language (e.g. "Create room" vs "Crear sala"). */
 .actions-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-top: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
 }
+.actions-row #btn-create { width: 100%; }
 .or {
   color: #999;
   font-size: 12px;
@@ -141,6 +170,8 @@ input[type="text"]:focus {
 .join-row {
   display: flex;
   gap: 8px;
+  justify-content: center;
+  width: 100%; 
 }
 
 button {
@@ -930,6 +961,62 @@ button.ghost {
   letter-spacing: 1px;
 }
 .tutorial-card .key { font-weight: 700; color: var(--accent); }
+
+/* =================== IN-GAME COACHMARKS =================== */
+.coach-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 2000;
+  pointer-events: auto;
+}
+.coach-overlay.hidden { display: none; }
+
+.coach-highlight {
+  position: relative;
+  z-index: 2001;
+  outline: 4px solid var(--accent-2);
+  outline-offset: 4px;
+  border-radius: 12px;
+  animation: coach-pulse 1.6s ease-in-out infinite;
+  background-clip: padding-box;
+}
+@keyframes coach-pulse {
+  0%, 100% { outline-color: var(--accent-2); box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.5); }
+  50% { outline-color: var(--orange); box-shadow: 0 0 0 8px rgba(255, 126, 58, 0); }
+}
+
+.coach-tooltip {
+  position: fixed;
+  background: white;
+  padding: 14px 16px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  z-index: 2002;
+  max-width: 290px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.coach-tooltip h3 {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 16px;
+}
+.coach-tooltip p { margin: 6px 0; color: #333; }
+.coach-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  gap: 8px;
+}
+.coach-step { font-size: 11px; color: #888; letter-spacing: 1px; font-weight: 700; }
+.coach-tooltip .coach-skip {
+  background: transparent;
+  color: #888;
+  padding: 4px 8px;
+  font-size: 12px;
+}
 
 @keyframes fade-in {
   from { opacity: 0; }

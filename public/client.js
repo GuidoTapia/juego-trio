@@ -14,6 +14,10 @@ let myId = null;
 // that the server may have emitted before our leaveRoom was processed — without
 // this guard, leaving from the winner overlay flickers back to the game.
 let inRoom = false;
+// True only for the in-game guided session that the home-page tutorial spawns.
+// When true and the first state arrives, we run a coachmark sequence.
+let isTutorial = false;
+let tutorialCoachShown = false;
 const stored = {
   name: localStorage.getItem("trio:name") || "",
 };
@@ -33,7 +37,7 @@ function toast(msg, ms = 2200) {
 
 function callOK(label, payload, cb) {
   socket.emit(label, payload, (res) => {
-    if (!res?.ok) toast(res?.error || "Error");
+    if (!res?.ok) toast(res?.error || t("toast.error"));
     cb?.(res);
   });
 }
@@ -41,7 +45,7 @@ function callOK(label, payload, cb) {
 /* =================== Home actions =================== */
 $("btn-create").onclick = () => {
   const name = $("input-name").value.trim();
-  if (!name) return toast("Pon un nombre");
+  if (!name) return toast(t("toast.need_name"));
   localStorage.setItem("trio:name", name);
   callOK("createRoom", { name }, (res) => {
     if (res?.ok) { inRoom = true; showScreen("room"); }
@@ -50,8 +54,8 @@ $("btn-create").onclick = () => {
 $("btn-join").onclick = () => {
   const name = $("input-name").value.trim();
   const code = $("input-code").value.trim().toUpperCase();
-  if (!name) return toast("Pon un nombre");
-  if (!code) return toast("Falta el código");
+  if (!name) return toast(t("toast.need_name"));
+  if (!code) return toast(t("toast.need_code"));
   localStorage.setItem("trio:name", name);
   callOK("joinRoom", { name, code }, (res) => {
     if (res?.ok) { inRoom = true; showScreen("room"); }
@@ -65,7 +69,7 @@ $("input-code").addEventListener("input", (e) => {
 $("btn-copy").onclick = async () => {
   const code = state?.code;
   if (!code) return;
-  try { await navigator.clipboard.writeText(code); toast("Código copiado"); }
+  try { await navigator.clipboard.writeText(code); toast(t("toast.code_copied")); }
   catch { toast(code); }
 };
 $("btn-leave").onclick = () => leaveRoom();
@@ -74,6 +78,9 @@ $("btn-leave-3").onclick = () => leaveRoom();
 
 function leaveRoom() {
   inRoom = false;
+  isTutorial = false;
+  tutorialCoachShown = false;
+  endCoachmarks();
   socket.emit("leaveRoom");
   state = null;
   // Force-hide the winner overlay in case we're leaving from it.
@@ -91,6 +98,13 @@ socket.on("state", (s) => {
   state = s;
   myId = s.you;
   render();
+  // Tutorial-mode coachmarks: once the first "playing" state lands, walk the
+  // player through the table before they make their first move.
+  if (isTutorial && !tutorialCoachShown && state.phase === "playing") {
+    tutorialCoachShown = true;
+    // Defer to next frame so the layout is settled before measuring rects.
+    requestAnimationFrame(() => requestAnimationFrame(startCoachmarks));
+  }
 });
 
 /* =================== Rendering =================== */
@@ -113,13 +127,13 @@ function renderLobby() {
   for (const p of state.players) {
     const li = document.createElement("li");
     const labels = [];
-    if (p.id === state.hostId) labels.push('<span class="host-badge">HOST</span>');
-    if (p.id === myId) labels.push('<span class="you-badge">TÚ</span>');
+    if (p.id === state.hostId) labels.push(`<span class="host-badge">${t("lobby.host_badge")}</span>`);
+    if (p.id === myId) labels.push(`<span class="you-badge">${t("lobby.you_badge")}</span>`);
     li.innerHTML = `<span>${escapeHTML(p.name)} ${labels.join("")}</span>`;
     if (p.isBot && iAmHost) {
       const btn = document.createElement("button");
       btn.className = "remove";
-      btn.textContent = "Quitar";
+      btn.textContent = t("lobby.remove");
       btn.onclick = () => callOK("removeBot", { playerId: p.id });
       li.appendChild(btn);
     }
@@ -129,9 +143,9 @@ function renderLobby() {
   $("btn-add-bot").disabled = !iAmHost || n >= 6;
   $("btn-start").disabled = !iAmHost || n < 3 || n > 6;
   const hint = $("lobby-hint");
-  if (n < 3) hint.textContent = `Necesitas al menos 3 jugadores (faltan ${3 - n}). Puedes añadir bots.`;
-  else if (!iAmHost) hint.textContent = "Esperando al anfitrión para empezar…";
-  else hint.textContent = `${n} jugadores listos. ¡Cuando quieras!`;
+  if (n < 3) hint.textContent = t("lobby.hint_need_more", { n: 3 - n });
+  else if (!iAmHost) hint.textContent = t("lobby.hint_waiting_host");
+  else hint.textContent = t("lobby.hint_ready", { n });
 }
 
 function renderGame() {
@@ -145,11 +159,11 @@ function renderGame() {
   const banner = $("turn-banner");
   if (state.phase === "ended") {
     const w = state.players.find((p) => p.id === state.winner);
-    banner.textContent = `🏆 Gana ${w?.name ?? "?"}`;
+    banner.textContent = t("game.turn_win", { name: w?.name ?? "?" });
   } else if (isMyTurn) {
-    banner.textContent = "✨ Tu turno";
+    banner.textContent = t("game.turn_mine");
   } else if (current) {
-    banner.textContent = `Turno de ${current.name}`;
+    banner.textContent = t("game.turn_other", { name: current.name });
   }
 
   const canAct = isMyTurn && !state.turn?.pendingResolve;
@@ -180,13 +194,13 @@ function renderGame() {
     }
     const avail = computeAvailableForPlayer(p.id);
     div.innerHTML = `
-      <div class="name">${escapeHTML(p.name)}${!p.connected ? ' <span style="font-size:10px;color:#c00">(desconectado)</span>' : ""}</div>
-      <div class="stats">${p.handSize} cartas</div>
+      <div class="name">${escapeHTML(p.name)}${!p.connected ? ` <span style="font-size:10px;color:#c00">${t("game.opp_disconnected")}</span>` : ""}</div>
+      <div class="stats">${t("game.cards_count", { n: p.handSize })}</div>
       <div class="opp-hand">${handHTML}</div>
       <div class="opp-trios">${triosHTML}</div>
       <div class="opp-actions">
-        <button class="opp-btn" data-which="lowest" ${canAct && avail.lowestUsable ? "" : "disabled"}>↓ Más baja</button>
-        <button class="opp-btn" data-which="highest" ${canAct && avail.highestUsable ? "" : "disabled"}>↑ Más alta</button>
+        <button class="opp-btn" data-which="lowest" ${canAct && avail.lowestUsable ? "" : "disabled"}>${t("game.actions.ask_low")}</button>
+        <button class="opp-btn" data-which="highest" ${canAct && avail.highestUsable ? "" : "disabled"}>${t("game.actions.ask_high")}</button>
       </div>
     `;
     const [lowBtn, highBtn] = div.querySelectorAll(".opp-btn");
@@ -226,8 +240,8 @@ function renderGame() {
   // My info & hand
   const meInfo = $("me-info");
   meInfo.innerHTML = `
-    <span><strong>${escapeHTML(me?.name || "")}</strong> · ${me?.hand?.length ?? 0} cartas</span>
-    <span>Tus trios: <span class="my-trios">${renderTrios(me?.trios || [])}</span></span>
+    <span><strong>${escapeHTML(me?.name || "")}</strong> · ${t("game.cards_count", { n: me?.hand?.length ?? 0 })}</span>
+    <span>${t("game.your_trios")} <span class="my-trios">${renderTrios(me?.trios || [])}</span></span>
   `;
   const handEl = $("me-hand");
   handEl.innerHTML = "";
@@ -265,10 +279,12 @@ function renderGame() {
   const overlay = $("winner-overlay");
   if (state.phase === "ended") {
     const w = state.players.find((p) => p.id === state.winner);
-    $("winner-title").textContent = w?.id === myId ? "¡Has ganado! 🎉" : `Gana ${w?.name ?? "?"}`;
+    $("winner-title").textContent = w?.id === myId
+      ? t("winner.title_self")
+      : t("winner.title_other", { name: w?.name ?? "?" });
     $("winner-detail").textContent = w?.trios?.includes(7)
-      ? "Con el trio del 7."
-      : "Con 3 trios.";
+      ? t("winner.detail_seven")
+      : t("winner.detail_three");
     overlay.classList.remove("hidden");
     $("btn-play-again").disabled = state.hostId !== myId;
   } else {
@@ -283,21 +299,25 @@ function renderRevealStrip() {
   row.innerHTML = "";
   result.textContent = "";
   result.className = "reveal-result";
-  label.innerHTML = "Reveladas este turno";
+  label.innerHTML = t("game.reveal_label_waiting");
 
   if (!state.turn || state.turn.reveals.length === 0) {
     row.innerHTML = '<span style="color:#aaa;font-size:12px;">—</span>';
     return;
   }
   if (state.turn.target !== null) {
-    label.innerHTML = `Objetivo <span class="target-pill">${state.turn.target}</span>`;
+    label.innerHTML = `${t("game.reveal_label_target")} <span class="target-pill">${state.turn.target}</span>`;
   }
   for (const r of state.turn.reveals) {
     const entry = document.createElement("div");
     entry.className = "reveal-entry";
-    const meta = r.source === "player"
-      ? `${escapeHTML(r.playerName)}<br>${r.which === "lowest" ? "↓ baja" : "↑ alta"}`
-      : "centro";
+    let meta;
+    if (r.source === "player") {
+      const which = r.which === "lowest" ? t("game.reveal_meta_low") : t("game.reveal_meta_high");
+      meta = `${escapeHTML(r.playerName)}<br>${which}`;
+    } else {
+      meta = t("game.reveal_meta_middle");
+    }
     entry.innerHTML = `
       <div class="card face flipped" style="background-image:url('/cartas/carta-trio-${r.number}.webp')" data-num="${r.number}"></div>
       <div class="reveal-meta">${meta}</div>
@@ -309,10 +329,10 @@ function renderRevealStrip() {
     const allMatch = state.turn.reveals.length === 3 &&
       state.turn.reveals.every((r) => r.number === state.turn.target);
     if (allMatch) {
-      result.textContent = `¡TRIO DEL ${state.turn.target}!`;
+      result.textContent = t("game.reveal_trio", { n: state.turn.target });
       result.classList.add("trio");
     } else if (last.number !== state.turn.target) {
-      result.textContent = `${last.number} ≠ ${state.turn.target}`;
+      result.textContent = t("game.reveal_fail", { got: last.number, target: state.turn.target });
       result.classList.add("fail");
     }
   }
@@ -356,18 +376,18 @@ function renderActions(isMyTurn) {
   a.innerHTML = "";
   if (state.phase !== "playing") return;
   if (!isMyTurn) {
-    a.innerHTML = `<span class="group-label">Espera tu turno…</span>`;
+    a.innerHTML = `<span class="group-label">${t("game.wait_turn")}</span>`;
     return;
   }
   if (state.turn?.pendingResolve) {
-    a.innerHTML = `<span class="group-label">Resolviendo…</span>`;
+    a.innerHTML = `<span class="group-label">${t("game.resolving")}</span>`;
     return;
   }
   const label = document.createElement("span");
   label.className = "group-label";
   label.textContent = state.turn?.target === null
-    ? "Tu turno: pídele una carta a un jugador o destapa una del centro."
-    : `Sigue buscando un ${state.turn.target}.`;
+    ? t("game.your_turn_first")
+    : t("game.your_turn_continue", { n: state.turn.target });
   a.appendChild(label);
 }
 
@@ -429,7 +449,9 @@ function renderLog() {
   for (const entry of state.log || []) {
     const div = document.createElement("div");
     div.className = "entry " + (entry.kind || "");
-    div.textContent = entry.text;
+    div.textContent = entry.i18nKey
+      ? t(entry.i18nKey, entry.params || {})
+      : (entry.text || "");
     el.appendChild(div);
   }
   el.scrollTop = el.scrollHeight;
@@ -455,77 +477,31 @@ function backImg() {
   return `<div class="tut-card back"></div>`;
 }
 
+// Each step references i18n keys for translated copy; the visual builder draws
+// real card thumbnails so the example art is consistent across languages.
 const TUTORIAL_STEPS = [
-  {
-    title: "¿Qué es Trio?",
-    body: `
-      <p>Trio es un juego rápido en el que <span class="key">tres es el número mágico</span>.</p>
-      <p>El mazo tiene 36 cartas: 3 copias de cada número del 1 al 12. Tu objetivo es completar trios (3 cartas iguales) antes que los demás.</p>
-      <div class="tutorial-visual">
-        ${cardImg(5)}${cardImg(5)}${cardImg(5)}
+  { titleKey: "tutorial.step1.title", bodyKey: "tutorial.step1.body",
+    visual: () => `${cardImg(5)}${cardImg(5)}${cardImg(5)}` },
+  { titleKey: "tutorial.step2.title", bodyKey: "tutorial.step2.body",
+    visual: () => `${backImg()}${backImg()}${backImg()}${backImg()}${backImg()}` },
+  { titleKey: "tutorial.step3.title", bodyKey: "tutorial.step3.body" },
+  { titleKey: "tutorial.step4.title", bodyKey: "tutorial.step4.body",
+    visualClass: "outcome",
+    visual: () => `
+      <div class="outcome-row">
+        <span class="outcome-label ok">${t("tutorial.step4.ok_label")}</span>
+        ${cardImg(8)}${cardImg(8)}${cardImg(8)}
+      </div>
+      <div class="outcome-row">
+        <span class="outcome-label fail">${t("tutorial.step4.fail_label")}</span>
+        ${cardImg(8)}${cardImg(8)}${cardImg(3)}
       </div>
     `,
-  },
-  {
-    title: "El reparto",
-    body: `
-      <p>Cada jugador recibe varias cartas en su mano, <span class="key">ordenadas de menor a mayor</span>. Las cartas que sobran se ponen boca abajo en el centro de la mesa.</p>
-      <div class="tutorial-visual">
-        ${backImg()}${backImg()}${backImg()}${backImg()}${backImg()}
-      </div>
-      <p>Nadie ve las cartas de nadie — ni siquiera las del centro.</p>
-    `,
-  },
-  {
-    title: "En tu turno",
-    body: `
-      <p>Tienes dos formas de revelar cartas, una a la vez:</p>
-      <ul>
-        <li>Pulsa <span class="key">↓ Más baja</span> o <span class="key">↑ Más alta</span> en cualquier jugador (incluido tú) para destapar la carta del extremo de su mano.</li>
-        <li>O pulsa una carta del <span class="key">centro</span> para destaparla.</li>
-      </ul>
-      <p>La <strong>primera</strong> carta revelada define el número que estás cazando.</p>
-    `,
-  },
-  {
-    title: "Coincidir o fallar",
-    body: `
-      <p>Una vez fijado el número, sigues revelando. Tienes dos finales posibles:</p>
-      <div class="tutorial-visual outcome">
-        <div class="outcome-row">
-          <span class="outcome-label ok">¡Trio!</span>
-          ${cardImg(8)}${cardImg(8)}${cardImg(8)}
-        </div>
-        <div class="outcome-row">
-          <span class="outcome-label fail">Falla</span>
-          ${cardImg(8)}${cardImg(8)}${cardImg(3)}
-        </div>
-      </div>
-      <p>Si las 3 coinciden, te llevas el trio. Si una no coincide, las cartas vuelven a su sitio y pasa el turno.</p>
-    `,
-  },
-  {
-    title: "Cómo ganar",
-    body: `
-      <p>Gana el primero que reúna:</p>
-      <ul>
-        <li><span class="key">3 trios</span> cualesquiera, o</li>
-        <li>El <span class="key">trio del 7</span> (vale como victoria inmediata).</li>
-      </ul>
-      <div class="tutorial-visual">
-        ${cardImg(7)}${cardImg(7)}${cardImg(7)}
-      </div>
-      <p>El 7 está en el medio del rango (1-12) y es difícil de cazar — por eso es el premio mayor.</p>
-    `,
-  },
-  {
-    title: "¡A jugar!",
-    body: `
-      <p>Vamos a abrir una partida con 2 bots para que pruebes. Cuando sea tu turno, mira los <strong>botones ↓ ↑</strong> de cada jugador o pulsa las cartas de los extremos de tu mano.</p>
-      <p>Si te trabas, este tutorial vuelve a estar disponible desde el menú principal.</p>
-    `,
-    finalAction: { label: "Empezar partida con bots", run: startTutorialGame },
-  },
+    tailKey: "tutorial.step4.tail" },
+  { titleKey: "tutorial.step5.title", bodyKey: "tutorial.step5.body",
+    visual: () => `${cardImg(7)}${cardImg(7)}${cardImg(7)}` },
+  { titleKey: "tutorial.step6.title", bodyKey: "tutorial.step6.body",
+    finalAction: { labelKey: "tutorial.start", run: startTutorialGame } },
 ];
 
 let tutorialIdx = 0;
@@ -540,16 +516,22 @@ function closeTutorial() {
 }
 function renderTutorial() {
   const step = TUTORIAL_STEPS[tutorialIdx];
-  $("tutorial-body").innerHTML = `<h2>${escapeHTML(step.title)}</h2>${step.body}`;
+  const visualHTML = step.visual
+    ? `<div class="tutorial-visual ${step.visualClass || ""}">${step.visual()}</div>`
+    : "";
+  const tailHTML = step.tailKey ? t(step.tailKey) : "";
+  $("tutorial-body").innerHTML =
+    `<h2>${escapeHTML(t(step.titleKey))}</h2>${t(step.bodyKey)}${visualHTML}${tailHTML}`;
   $("tutorial-progress").textContent = `${tutorialIdx + 1} / ${TUTORIAL_STEPS.length}`;
   $("tutorial-prev").disabled = tutorialIdx === 0;
+  $("tutorial-prev").textContent = t("tutorial.prev");
   const next = $("tutorial-next");
   if (tutorialIdx === TUTORIAL_STEPS.length - 1 && step.finalAction) {
-    next.textContent = step.finalAction.label;
+    next.textContent = t(step.finalAction.labelKey);
   } else if (tutorialIdx === TUTORIAL_STEPS.length - 1) {
-    next.textContent = "Cerrar";
+    next.textContent = t("tutorial.close");
   } else {
-    next.textContent = "Siguiente";
+    next.textContent = t("tutorial.next");
   }
 }
 function nextTutorial() {
@@ -567,16 +549,21 @@ function prevTutorial() {
 }
 
 function startTutorialGame() {
-  const name = ($("input-name").value || "").trim() || "Tú";
+  const fallback = getLang() === "es" ? "Tú" : "You";
+  const name = ($("input-name").value || "").trim() || fallback;
   localStorage.setItem("trio:name", name);
   callOK("createRoom", { name }, (res) => {
     if (!res?.ok) return;
     inRoom = true;
+    isTutorial = true;
+    tutorialCoachShown = false;
     socket.emit("addBot", {}, (r1) => {
       if (!r1?.ok) return toast(r1?.error || "Error añadiendo bot");
       socket.emit("addBot", {}, (r2) => {
         if (!r2?.ok) return toast(r2?.error || "Error añadiendo bot");
-        socket.emit("startGame", {}, (r3) => {
+        // Force the human to play the first turn so the tutorial feels like a
+        // proper "your move" intro rather than dropping into a bot's reveal.
+        socket.emit("startGame", { firstPlayerId: socket.id }, (r3) => {
           if (!r3?.ok) toast(r3?.error || "Error empezando");
         });
       });
@@ -588,3 +575,160 @@ $("btn-tutorial").onclick = openTutorial;
 $("tutorial-close").onclick = closeTutorial;
 $("tutorial-next").onclick = nextTutorial;
 $("tutorial-prev").onclick = prevTutorial;
+
+/* =================== Language selectors =================== */
+// There is one .lang-select on each screen so the control is always reachable.
+// They share the same setLang() target and stay in sync on change.
+(function setupLangSelectors() {
+  if (typeof window.LANGS === "undefined") return;
+  const selectors = document.querySelectorAll(".lang-select");
+  for (const sel of selectors) {
+    for (const { code, label } of window.LANGS) {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    }
+    sel.value = getLang();
+    sel.addEventListener("change", () => {
+      setLang(sel.value);
+      for (const other of selectors) if (other !== sel) other.value = sel.value;
+    });
+  }
+})();
+
+// Re-render every dynamic surface whenever the language changes so the running
+// game updates instantly (turn banner, action buttons, log entries, etc.).
+document.addEventListener("trio:lang-changed", () => {
+  if (state) render();
+  if (!$("tutorial-overlay").classList.contains("hidden")) renderTutorial();
+});
+
+/* =================== In-game coachmarks =================== */
+// Each step points at a real DOM selector in the game screen and explains it.
+// Targets are read at fire-time so they pick up the rendered layout (cards,
+// opponents, etc.).
+const COACH_STEPS = [
+  { selector: "#me-hand",       titleKey: "coach.hand.title",   bodyKey: "coach.hand.body",   placement: "top" },
+  { selector: ".me-hand-row",   titleKey: "coach.row.title",    bodyKey: "coach.row.body",    placement: "top" },
+  { selector: "#opponents",     titleKey: "coach.opps.title",   bodyKey: "coach.opps.body",   placement: "bottom" },
+  { selector: "#middle",        titleKey: "coach.middle.title", bodyKey: "coach.middle.body", placement: "top" },
+  { selector: ".reveal-strip",  titleKey: "coach.reveal.title", bodyKey: "coach.reveal.body", placement: "left" },
+  { selector: "#turn-banner",   titleKey: "coach.turn.title",   bodyKey: "coach.turn.body",   placement: "bottom" },
+];
+
+let coachIdx = 0;
+let coachActiveTarget = null;
+
+function startCoachmarks() {
+  coachIdx = 0;
+  $("coach-overlay").classList.remove("hidden");
+  showCoachStep();
+  window.addEventListener("resize", repositionCoachmark);
+}
+
+function showCoachStep() {
+  const step = COACH_STEPS[coachIdx];
+  if (!step) return endCoachmarks();
+  // Unhighlight previous
+  if (coachActiveTarget) unhighlightCoach(coachActiveTarget);
+  const target = document.querySelector(step.selector);
+  if (!target) {
+    coachIdx++;
+    return showCoachStep();
+  }
+  coachActiveTarget = target;
+  highlightCoach(target);
+
+  const tip = $("coach-tooltip");
+  tip.style.display = "block";
+  tip.innerHTML = `
+    <h3>${escapeHTML(t(step.titleKey))}</h3>
+    <p>${t(step.bodyKey)}</p>
+    <div class="coach-actions">
+      <span class="coach-step">${coachIdx + 1} / ${COACH_STEPS.length}</span>
+      <div>
+        <button class="coach-skip" id="coach-skip">${t("coach.skip")}</button>
+        <button class="primary" id="coach-next">${coachIdx === COACH_STEPS.length - 1 ? t("coach.done") : t("coach.next")}</button>
+      </div>
+    </div>
+  `;
+  // Position after innerHTML is in so size is known.
+  positionCoachTooltip(target, step.placement);
+
+  document.getElementById("coach-next").onclick = () => {
+    coachIdx++;
+    showCoachStep();
+  };
+  document.getElementById("coach-skip").onclick = endCoachmarks;
+}
+
+function repositionCoachmark() {
+  const step = COACH_STEPS[coachIdx];
+  if (!step || !coachActiveTarget) return;
+  positionCoachTooltip(coachActiveTarget, step.placement);
+}
+
+function positionCoachTooltip(target, placement) {
+  const tip = $("coach-tooltip");
+  const tRect = target.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  const margin = 12;
+  let left, top;
+  if (placement === "top") {
+    left = tRect.left + tRect.width / 2 - tipRect.width / 2;
+    top = tRect.top - tipRect.height - margin;
+    if (top < 10) { top = tRect.bottom + margin; } // flip if no room
+  } else if (placement === "left") {
+    left = tRect.left - tipRect.width - margin;
+    top = tRect.top + tRect.height / 2 - tipRect.height / 2;
+    if (left < 10) { left = tRect.right + margin; }
+  } else if (placement === "right") {
+    left = tRect.right + margin;
+    top = tRect.top + tRect.height / 2 - tipRect.height / 2;
+  } else { // bottom
+    left = tRect.left + tRect.width / 2 - tipRect.width / 2;
+    top = tRect.bottom + margin;
+    if (top + tipRect.height > window.innerHeight - 10) top = tRect.top - tipRect.height - margin;
+  }
+  // Clamp to viewport.
+  left = Math.max(10, Math.min(left, window.innerWidth - tipRect.width - 10));
+  top = Math.max(10, Math.min(top, window.innerHeight - tipRect.height - 10));
+  tip.style.left = left + "px";
+  tip.style.top = top + "px";
+}
+
+function highlightCoach(el) {
+  el.dataset._coachOrigPos = el.style.position || "";
+  el.dataset._coachOrigZ = el.style.zIndex || "";
+  if (getComputedStyle(el).position === "static") el.style.position = "relative";
+  el.style.zIndex = "2001";
+  el.classList.add("coach-highlight");
+  // Scroll into view if it's offscreen.
+  const r = el.getBoundingClientRect();
+  if (r.top < 0 || r.bottom > window.innerHeight) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function unhighlightCoach(el) {
+  el.classList.remove("coach-highlight");
+  el.style.position = el.dataset._coachOrigPos || "";
+  el.style.zIndex = el.dataset._coachOrigZ || "";
+  delete el.dataset._coachOrigPos;
+  delete el.dataset._coachOrigZ;
+}
+
+function endCoachmarks() {
+  if (coachActiveTarget) {
+    unhighlightCoach(coachActiveTarget);
+    coachActiveTarget = null;
+  }
+  $("coach-overlay").classList.add("hidden");
+  const tip = $("coach-tooltip");
+  if (tip) {
+    tip.style.display = "none";
+    tip.innerHTML = "";
+  }
+  window.removeEventListener("resize", repositionCoachmark);
+}

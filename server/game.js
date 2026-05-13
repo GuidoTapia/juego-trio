@@ -76,7 +76,7 @@ export function removePlayer(room, id) {
   }
 }
 
-export function startGame(room) {
+export function startGame(room, opts = {}) {
   if (room.phase !== "lobby") throw new Error("Ya en juego");
   const n = room.players.length;
   if (n < 3 || n > 6) throw new Error("Trio requiere 3-6 jugadores");
@@ -88,13 +88,20 @@ export function startGame(room) {
     p.trios = [];
   }
   room.middle = deck.splice(0, conf.middle).map((number) => ({ number, faceUp: false }));
-  room.currentPlayerIndex = Math.floor(Math.random() * n);
+
+  if (opts.firstPlayerId) {
+    const idx = room.players.findIndex((p) => p.id === opts.firstPlayerId);
+    room.currentPlayerIndex = idx >= 0 ? idx : 0;
+  } else {
+    room.currentPlayerIndex = Math.floor(Math.random() * n);
+  }
+
   room.phase = "playing";
   room.winner = null;
   room.turn = newTurnState();
   room.log = [];
   room.knownEnds = {};
-  pushLog(room, "system", `La partida comienza. Empieza ${currentPlayer(room).name}.`);
+  pushLog(room, "system", "log.start", { name: currentPlayer(room).name });
 }
 
 function newTurnState() {
@@ -109,8 +116,8 @@ export function currentPlayer(room) {
   return room.players[room.currentPlayerIndex];
 }
 
-function pushLog(room, kind, text, data = {}) {
-  room.log.push({ t: Date.now(), kind, text, ...data });
+function pushLog(room, kind, i18nKey, params = {}) {
+  room.log.push({ t: Date.now(), kind, i18nKey, params });
   if (room.log.length > 200) room.log.shift();
 }
 
@@ -182,12 +189,10 @@ export function applyReveal(room, actorId, action) {
       which: action.which,
       number,
     };
-    pushLog(room, "reveal",
-      actor.id === target.id
-        ? `${actor.name} revela su carta ${action.which === "lowest" ? "más baja" : "más alta"}: ${number}.`
-        : `${actor.name} pide la carta ${action.which === "lowest" ? "más baja" : "más alta"} de ${target.name}: ${number}.`,
-      { number, by: actor.id, from: target.id }
-    );
+    const key = actor.id === target.id
+      ? (action.which === "lowest" ? "log.reveal_self_low" : "log.reveal_self_high")
+      : (action.which === "lowest" ? "log.reveal_ask_low" : "log.reveal_ask_high");
+    pushLog(room, "reveal", key, { actor: actor.name, target: target.name, number });
   } else if (action.type === "middle") {
     const i = action.middleIndex;
     if (!Number.isInteger(i) || i < 0 || i >= room.middle.length) throw new Error("Carta del centro inválida");
@@ -195,8 +200,7 @@ export function applyReveal(room, actorId, action) {
     if (!cell || cell.faceUp) throw new Error("Esa carta ya está revelada");
     reveal = { source: "middle", middleIndex: i, number: cell.number };
     cell.faceUp = true;
-    pushLog(room, "reveal", `${actor.name} revela una carta del centro: ${cell.number}.`,
-      { number: cell.number, by: actor.id, from: "middle" });
+    pushLog(room, "reveal", "log.reveal_middle", { actor: actor.name, number: cell.number });
   } else {
     throw new Error("Acción desconocida");
   }
@@ -258,17 +262,17 @@ export function resolveTurn(room) {
 
     const winner = currentPlayer(room);
     winner.trios.push(target);
-    pushLog(room, "trio", `¡${winner.name} completa el trio de ${target}!`, { number: target, by: winner.id });
+    pushLog(room, "trio", "log.trio_completed", { name: winner.name, number: target });
     outcome = "trio";
 
     if (target === 7 || winner.trios.length >= 3) {
       room.phase = "ended";
       room.winner = winner.id;
-      pushLog(room, "win",
-        target === 7
-          ? `${winner.name} GANA con el trio del 7!`
-          : `${winner.name} GANA con 3 trios!`,
-        { winner: winner.id }
+      pushLog(
+        room,
+        "win",
+        target === 7 ? "log.win_seven" : "log.win_three",
+        { name: winner.name }
       );
     }
   } else if (last && reveals.length >= 2 && last.number !== target) {
@@ -283,10 +287,7 @@ export function resolveTurn(room) {
     }
     // Failed reveals are public information that survives across turns.
     recordKnownEnds(room, reveals);
-    pushLog(room, "fail",
-      `Las cartas reveladas (${reveals.map(r => r.number).join(", ")}) no coinciden. Las cartas vuelven.`,
-      { reveals: reveals.map((r) => r.number) }
-    );
+    pushLog(room, "fail", "log.fail", { reveals: reveals.map((r) => r.number).join(", ") });
     outcome = "fail";
   } else {
     throw new Error("Resolución prematura");
@@ -296,7 +297,7 @@ export function resolveTurn(room) {
   if (room.phase === "playing") {
     advanceTurn(room);
     room.turn = newTurnState();
-    pushLog(room, "system", `Turno de ${currentPlayer(room).name}.`);
+    pushLog(room, "system", "log.turn_change", { name: currentPlayer(room).name });
   } else {
     room.turn = newTurnState();
   }

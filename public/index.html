@@ -1,38 +1,41 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TRIO — juego de cartas online</title>
+  <title>TRIO — online card game</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="app">
     <!-- Lobby (pre-room) -->
     <section id="screen-home" class="screen active">
+      <header class="home-topbar">
+        <select class="lang-select" title="Language" aria-label="Language"></select>
+      </header>
+
       <div class="home-card">
         <img src="trio-logo.webp" alt="TRIO" class="logo-img" />
-        <p class="tagline">Three is the magic number. 3-6 jugadores en tiempo real.</p>
+        <p class="tagline" data-i18n="home.tagline"></p>
 
         <label class="field">
-          <span>Tu nombre</span>
-          <input id="input-name" type="text" maxlength="16" placeholder="ej. Walter" autocomplete="off" />
+          <span data-i18n="home.name_label"></span>
+          <input id="input-name" type="text" maxlength="16" data-i18n-placeholder="home.name_placeholder" autocomplete="off" />
         </label>
 
         <div class="actions-row">
-          <button id="btn-create" class="primary">Crear sala</button>
-          <div class="or">o</div>
+          <button id="btn-create" class="primary" data-i18n="home.create_room"></button>
+          <div class="or" data-i18n="home.or"></div>
           <div class="join-row">
-            <input id="input-code" type="text" maxlength="4" placeholder="CÓDIGO" />
-            <button id="btn-join">Unirse</button>
+            <input id="input-code" type="text" maxlength="4" data-i18n-placeholder="home.code_placeholder" />
+            <button id="btn-join" data-i18n="home.join"></button>
           </div>
         </div>
 
-        <button id="btn-tutorial" class="ghost wide">¿Primera vez? Hacer tutorial</button>
+        <p class="hint" data-i18n="home.hint"></p>
+        
+        <button id="btn-tutorial" class="ghost wide" data-i18n="home.tutorial_button"></button>
 
-        <p class="hint">
-          Comparte el código de tu sala con tus amigos, o añade bots para jugar en solitario.
-        </p>
       </div>
     </section>
 
@@ -40,29 +43,32 @@
     <section id="screen-room" class="screen">
       <header class="topbar">
         <div class="room-code">
-          Sala: <span id="room-code" class="code"></span>
-          <button id="btn-copy" title="Copiar código">📋</button>
+          <span data-i18n="topbar.room"></span> <span id="room-code" class="code"></span>
+          <button id="btn-copy" data-i18n-title="topbar.copy">📋</button>
         </div>
-        <button id="btn-leave" class="ghost">Salir</button>
+        <div class="topbar-right">
+          <select class="lang-select" title="Language" aria-label="Language"></select>
+          <button id="btn-leave" class="ghost" data-i18n="topbar.leave"></button>
+        </div>
       </header>
 
       <div class="lobby-grid">
         <div class="players-panel">
-          <h2>Jugadores</h2>
+          <h2 data-i18n="lobby.players"></h2>
           <ul id="lobby-players" class="player-list"></ul>
           <div class="lobby-actions">
-            <button id="btn-add-bot" class="ghost">+ Añadir bot</button>
-            <button id="btn-start" class="primary">Empezar partida</button>
+            <button id="btn-add-bot" class="ghost" data-i18n="lobby.add_bot"></button>
+            <button id="btn-start" class="primary" data-i18n="lobby.start_game"></button>
           </div>
           <p id="lobby-hint" class="hint"></p>
         </div>
         <div class="rules-panel">
-          <h2>Reglas rápidas</h2>
+          <h2 data-i18n="lobby.rules"></h2>
           <ol class="rules-list">
-            <li>En tu turno, revela cartas una a una.</li>
-            <li>Pide la carta <strong>más baja</strong> o la <strong>más alta</strong> a cualquier jugador (incluso a ti), o destapa una del <strong>centro</strong>.</li>
-            <li>Si las dos primeras coinciden, debes seguir hasta completar el trio o fallar.</li>
-            <li>Gana quien primero reúna <strong>3 trios</strong> o el <strong>trio del 7</strong>.</li>
+            <li data-i18n="lobby.rule1"></li>
+            <li data-i18n="lobby.rule2"></li>
+            <li data-i18n="lobby.rule3"></li>
+            <li data-i18n="lobby.rule4"></li>
           </ol>
         </div>
       </div>
@@ -71,9 +77,12 @@
     <!-- Game screen -->
     <section id="screen-game" class="screen">
       <header class="topbar">
-        <div class="room-code">Sala: <span id="game-code" class="code"></span></div>
+        <div class="room-code"><span data-i18n="topbar.room"></span> <span id="game-code" class="code"></span></div>
         <div id="turn-banner" class="turn-banner"></div>
-        <button id="btn-leave-2" class="ghost">Salir</button>
+        <div class="topbar-right">
+          <select class="lang-select" title="Language" aria-label="Language"></select>
+          <button id="btn-leave-2" class="ghost" data-i18n="topbar.leave"></button>
+        </div>
       </header>
 
       <div class="table">
@@ -82,7 +91,7 @@
         <div class="center-area">
           <div id="middle" class="middle"></div>
           <aside class="reveal-strip">
-            <div id="reveal-label" class="reveal-label">Reveladas</div>
+            <div id="reveal-label" class="reveal-label" data-i18n="game.reveal_label_waiting"></div>
             <div id="reveal-row" class="reveal-row"></div>
             <div id="reveal-result" class="reveal-result"></div>
           </aside>
@@ -91,9 +100,9 @@
         <div class="me-area">
           <div id="me-info" class="me-info"></div>
           <div class="me-hand-row">
-            <button id="me-btn-low" class="me-btn">↓ Mi más baja</button>
+            <button id="me-btn-low" class="me-btn" data-i18n="game.actions.my_low"></button>
             <div id="me-hand" class="hand"></div>
-            <button id="me-btn-high" class="me-btn">↑ Mi más alta</button>
+            <button id="me-btn-high" class="me-btn" data-i18n="game.actions.my_high"></button>
           </div>
           <div id="actions" class="actions"></div>
         </div>
@@ -105,8 +114,8 @@
         <div class="overlay-card">
           <h2 id="winner-title"></h2>
           <p id="winner-detail"></p>
-          <button id="btn-play-again" class="primary">Jugar otra vez</button>
-          <button id="btn-leave-3" class="ghost">Salir al menú</button>
+          <button id="btn-play-again" class="primary" data-i18n="winner.play_again"></button>
+          <button id="btn-leave-3" class="ghost" data-i18n="winner.leave_menu"></button>
         </div>
       </div>
     </section>
@@ -114,19 +123,24 @@
     <!-- Tutorial overlay (driven by client.js) -->
     <div id="tutorial-overlay" class="overlay hidden">
       <div class="tutorial-card">
-        <button id="tutorial-close" class="tutorial-close" title="Cerrar">×</button>
+        <button id="tutorial-close" class="tutorial-close" data-i18n-title="tutorial.close">×</button>
         <div id="tutorial-body"></div>
         <div class="tutorial-footer">
-          <button id="tutorial-prev" class="ghost">Atrás</button>
+          <button id="tutorial-prev" class="ghost" data-i18n="tutorial.prev"></button>
           <span id="tutorial-progress" class="tutorial-progress"></span>
-          <button id="tutorial-next" class="primary">Siguiente</button>
+          <button id="tutorial-next" class="primary" data-i18n="tutorial.next"></button>
         </div>
       </div>
     </div>
 
+    <!-- In-game coachmark overlay -->
+    <div id="coach-overlay" class="coach-overlay hidden"></div>
+    <div id="coach-tooltip" class="coach-tooltip" style="display:none;"></div>
+
     <div id="toast" class="toast hidden"></div>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="client.js"></script>
 </body>

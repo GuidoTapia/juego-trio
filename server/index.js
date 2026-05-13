@@ -187,13 +187,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("startGame", (_, cb) => {
+  socket.on("startGame", (payload, cb) => {
     try {
       const code = socketRoom.get(socket.id);
       const room = rooms.get(code);
       if (!room) throw new Error("Sala inexistente");
       if (room.hostId !== socket.id) throw new Error("Solo el anfitrión puede empezar");
-      startGame(room);
+      // Honour an explicit starting player (used by the tutorial so the human
+      // is the one to play the first turn).
+      startGame(room, { firstPlayerId: payload?.firstPlayerId });
       broadcastRoom(code);
       scheduleBotTurn(code);
       cb?.({ ok: true });
