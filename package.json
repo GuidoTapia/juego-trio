@@ -1,0 +1,23 @@
+{
+  "name": "trio-online",
+  "version": "1.0.0",
+  "description": "Web implementation of the Trio card game with real-time multiplayer and bots",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test:sim": "node server/test-sim.js",
+    "test:e2e": "node server/test-e2e.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

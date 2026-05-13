@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRIO — juego de cartas online</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Lobby (pre-room) -->
+    <section id="screen-home" class="screen active">
+      <div class="home-card">
+        <h1 class="logo">TRIO</h1>
+        <p class="tagline">Three is the magic number. 3-6 jugadores en tiempo real.</p>
+
+        <label class="field">
+          <span>Tu nombre</span>
+          <input id="input-name" type="text" maxlength="16" placeholder="ej. Ada" autocomplete="off" />
+        </label>
+
+        <div class="actions-row">
+          <button id="btn-create" class="primary">Crear sala</button>
+          <div class="or">o</div>
+          <div class="join-row">
+            <input id="input-code" type="text" maxlength="4" placeholder="CÓDIGO" />
+            <button id="btn-join">Unirse</button>
+          </div>
+        </div>
+
+        <p class="hint">
+          Comparte el código de tu sala con tus amigos, o añade bots para jugar en solitario.
+        </p>
+      </div>
+    </section>
+
+    <!-- In-room lobby -->
+    <section id="screen-room" class="screen">
+      <header class="topbar">
+        <div class="room-code">
+          Sala: <span id="room-code" class="code"></span>
+          <button id="btn-copy" title="Copiar código">📋</button>
+        </div>
+        <button id="btn-leave" class="ghost">Salir</button>
+      </header>
+
+      <div class="lobby-grid">
+        <div class="players-panel">
+          <h2>Jugadores</h2>
+          <ul id="lobby-players" class="player-list"></ul>
+          <div class="lobby-actions">
+            <button id="btn-add-bot" class="ghost">+ Añadir bot</button>
+            <button id="btn-start" class="primary">Empezar partida</button>
+          </div>
+          <p id="lobby-hint" class="hint"></p>
+        </div>
+        <div class="rules-panel">
+          <h2>Reglas rápidas</h2>
+          <ol class="rules-list">
+            <li>En tu turno, revela cartas una a una.</li>
+            <li>Pide la carta <strong>más baja</strong> o la <strong>más alta</strong> a cualquier jugador (incluso a ti), o destapa una del <strong>centro</strong>.</li>
+            <li>Si las dos primeras coinciden, debes seguir hasta completar el trio o fallar.</li>
+            <li>Gana quien primero reúna <strong>3 trios</strong> o el <strong>trio del 7</strong>.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Game screen -->
+    <section id="screen-game" class="screen">
+      <header class="topbar">
+        <div class="room-code">Sala: <span id="game-code" class="code"></span></div>
+        <div id="turn-banner" class="turn-banner"></div>
+        <button id="btn-leave-2" class="ghost">Salir</button>
+      </header>
+
+      <div class="table">
+        <div id="opponents" class="opponents"></div>
+
+        <div class="center-area">
+          <div class="reveal-strip">
+            <div id="reveal-label" class="reveal-label">Cartas reveladas en este turno</div>
+            <div id="reveal-row" class="reveal-row"></div>
+            <div id="reveal-result" class="reveal-result"></div>
+          </div>
+          <div id="middle" class="middle"></div>
+        </div>
+
+        <div class="me-area">
+          <div id="me-info" class="me-info"></div>
+          <div class="me-hand-row">
+            <button id="me-btn-low" class="me-btn">↓ Mi más baja</button>
+            <div id="me-hand" class="hand"></div>
+            <button id="me-btn-high" class="me-btn">↑ Mi más alta</button>
+          </div>
+          <div id="actions" class="actions"></div>
+        </div>
+      </div>
+
+      <aside id="log" class="log"></aside>
+
+      <div id="winner-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 id="winner-title"></h2>
+          <p id="winner-detail"></p>
+          <button id="btn-play-again" class="primary">Jugar otra vez</button>
+          <button id="btn-leave-3" class="ghost">Salir al menú</button>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="client.js"></script>
+</body>
+</html>
