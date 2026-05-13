@@ -156,13 +156,25 @@ function renderGame() {
     div.className = "opponent" + (isCurrent ? " turn" : "") +
       (!p.connected ? " disconnected" : "") + (p.handSize === 0 ? " empty" : "");
     const triosHTML = renderTrios(p.trios);
-    let backs = "";
-    for (let i = 0; i < p.handSize; i++) backs += '<div class="mini-card"></div>';
+    const reveals = playerRevealsThisTurn(p.id);
+    let handHTML = "";
+    // Leftmost: revealed-as-lowest cards (face up, in reveal order).
+    for (const num of reveals.low) {
+      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${num}.png')"></div>`;
+    }
+    // Middle: still-hidden cards (card backs).
+    const hidden = Math.max(0, p.handSize - reveals.low.length - reveals.high.length);
+    for (let i = 0; i < hidden; i++) handHTML += '<div class="mini-card"></div>';
+    // Rightmost: revealed-as-highest cards (face up, in reverse so the actual hand
+    // highest appears furthest right).
+    for (let i = reveals.high.length - 1; i >= 0; i--) {
+      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${reveals.high[i]}.png')"></div>`;
+    }
     const avail = computeAvailableForPlayer(p.id);
     div.innerHTML = `
       <div class="name">${escapeHTML(p.name)}${!p.connected ? ' <span style="font-size:10px;color:#c00">(desconectado)</span>' : ""}</div>
       <div class="stats">${p.handSize} cartas</div>
-      <div class="opp-hand">${backs}</div>
+      <div class="opp-hand">${handHTML}</div>
       <div class="opp-trios">${triosHTML}</div>
       <div class="opp-actions">
         <button class="opp-btn" data-which="lowest" ${canAct && avail.lowestUsable ? "" : "disabled"}>↓ Más baja</button>
@@ -221,7 +233,7 @@ function renderGame() {
       card.style.backgroundImage = `url('/cartas/carta-trio-${num}.png')`;
       const isRevealedFromMe =
         idx < lowRevealed || idx >= me.hand.length - highRevealed;
-      if (isRevealedFromMe) card.classList.add("disabled");
+      if (isRevealedFromMe) card.classList.add("revealed-from-me");
       if (isMyTurn && !state.turn?.pendingResolve && !isRevealedFromMe) {
         const availIdxs = computeMyAvailable();
         if (
@@ -257,32 +269,30 @@ function renderGame() {
 function renderRevealStrip() {
   const row = $("reveal-row");
   const result = $("reveal-result");
+  const label = $("reveal-label");
   row.innerHTML = "";
   result.textContent = "";
   result.className = "reveal-result";
+  label.innerHTML = "Reveladas este turno";
+
   if (!state.turn || state.turn.reveals.length === 0) {
-    $("reveal-label").textContent = "Esperando a que se revele una carta…";
+    row.innerHTML = '<span style="color:#aaa;font-size:12px;">—</span>';
     return;
   }
-  $("reveal-label").textContent = state.turn.target !== null
-    ? `Buscando el trio del ${state.turn.target}`
-    : "Cartas reveladas";
+  if (state.turn.target !== null) {
+    label.innerHTML = `Objetivo <span class="target-pill">${state.turn.target}</span>`;
+  }
   for (const r of state.turn.reveals) {
-    const c = document.createElement("div");
-    c.className = "card face flipped";
-    c.dataset.num = r.number;
-    c.style.backgroundImage = `url('/cartas/carta-trio-${r.number}.png')`;
-    const label = document.createElement("div");
-    label.style.cssText = "text-align:center;font-size:11px;color:#666;margin-top:4px;";
-    if (r.source === "player") {
-      label.textContent = `${r.playerName} (${r.which === "lowest" ? "↓" : "↑"})`;
-    } else {
-      label.textContent = "centro";
-    }
-    const wrap = document.createElement("div");
-    wrap.appendChild(c);
-    wrap.appendChild(label);
-    row.appendChild(wrap);
+    const entry = document.createElement("div");
+    entry.className = "reveal-entry";
+    const meta = r.source === "player"
+      ? `${escapeHTML(r.playerName)}<br>${r.which === "lowest" ? "↓ baja" : "↑ alta"}`
+      : "centro";
+    entry.innerHTML = `
+      <div class="card face flipped" style="background-image:url('/cartas/carta-trio-${r.number}.png')" data-num="${r.number}"></div>
+      <div class="reveal-meta">${meta}</div>
+    `;
+    row.appendChild(entry);
   }
   if (state.turn.pendingResolve) {
     const last = state.turn.reveals[state.turn.reveals.length - 1];
@@ -292,7 +302,7 @@ function renderRevealStrip() {
       result.textContent = `¡TRIO DEL ${state.turn.target}!`;
       result.classList.add("trio");
     } else if (last.number !== state.turn.target) {
-      result.textContent = `${last.number} no coincide con ${state.turn.target}. Las cartas vuelven…`;
+      result.textContent = `${last.number} ≠ ${state.turn.target}`;
       result.classList.add("fail");
     }
   }
@@ -383,8 +393,24 @@ function computeAvailableForPlayer(pid) {
 
 function renderTrios(trios) {
   return trios
-    .map((n) => `<span class="trio-chip ${n === 7 ? "seven" : ""}">${n}×3</span>`)
-    .join("");
+    .map((n) => {
+      const card = `<div class="trio-card" style="background-image:url('/cartas/carta-trio-${n}.png')"></div>`;
+      return `<div class="trio-group ${n === 7 ? "seven" : ""}" title="Trio del ${n}">${card}${card}${card}</div>`;
+    })
+    .join(" ");
+}
+
+// What numbers has this player been forced to reveal in the current turn?
+// Returns { low: [n1, n2, ...], high: [m1, m2, ...] } in the order they were revealed.
+function playerRevealsThisTurn(playerId) {
+  const low = [];
+  const high = [];
+  for (const r of state.turn?.reveals || []) {
+    if (r.source !== "player" || r.playerId !== playerId) continue;
+    if (r.which === "lowest") low.push(r.number);
+    else high.push(r.number);
+  }
+  return { low, high };
 }
 
 function renderLog() {

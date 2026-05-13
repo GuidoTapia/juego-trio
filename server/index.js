@@ -30,6 +30,11 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 const rooms = new Map(); // code -> room
 const socketRoom = new Map(); // socketId -> code
 
+// How long the final reveal stays on the table before resolving (trio is taken
+// or mismatched cards are returned). Long enough for someone who blinked to
+// still read the outcome.
+const RESOLVE_DELAY_MS = 2500;
+
 function generateCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -64,7 +69,7 @@ function scheduleBotTurn(code) {
   const player = currentPlayer(room);
   if (!player || !player.isBot) return;
   if (room.turn.pendingResolve) {
-    setTimeout(() => doResolve(code), 1100);
+    setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
     return;
   }
   setTimeout(() => doBotMove(code), room.turn.reveals.length === 0 ? 800 : 1100);
@@ -76,7 +81,7 @@ function doBotMove(code) {
   const player = currentPlayer(room);
   if (!player || !player.isBot) return;
   if (room.turn.pendingResolve) {
-    setTimeout(() => doResolve(code), 1100);
+    setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
     return;
   }
   const action = chooseBotAction(room, player.id);
@@ -91,7 +96,7 @@ function doBotMove(code) {
   }
   broadcastRoom(code);
   if (room.turn.pendingResolve) {
-    setTimeout(() => doResolve(code), 1500);
+    setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
   } else {
     setTimeout(() => doBotMove(code), 1100);
   }
@@ -208,7 +213,7 @@ io.on("connection", (socket) => {
       applyReveal(room, socket.id, action);
       broadcastRoom(code);
       if (room.turn.pendingResolve) {
-        setTimeout(() => doResolve(code), 1500);
+        setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
       }
       cb?.({ ok: true });
     } catch (e) {

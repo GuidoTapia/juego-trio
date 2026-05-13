@@ -326,10 +326,11 @@ button.ghost {
 }
 .opp-hand {
   display: flex;
-  gap: -10px;
   margin-top: 6px;
   position: relative;
   height: 56px;
+  align-items: center;
+  justify-content: center;
 }
 .opp-hand .mini-card {
   width: 30px;
@@ -338,8 +339,16 @@ button.ghost {
   border-radius: 5px;
   background: var(--card-back);
   border: 1.5px solid #000;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
+.opp-hand .mini-card.face {
+  background-size: cover;
+  background-position: center;
+  outline: 2px solid var(--accent-2);
+  outline-offset: -1px;
+  z-index: 1;
+}
+.opp-hand .mini-card:last-child { margin-right: 0; }
 .opp-trios {
   display: flex;
   gap: 4px;
@@ -387,52 +396,96 @@ button.ghost {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 45, 135, 0.4); }
   50% { box-shadow: 0 0 0 6px rgba(255, 45, 135, 0); }
 }
-.trio-chip {
-  background: var(--accent-2);
-  color: var(--ink);
-  font-weight: 700;
-  padding: 2px 6px;
+.trio-group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
   border-radius: 6px;
-  font-size: 12px;
+  background: rgba(255, 193, 7, 0.18);
+  border: 1.5px solid var(--accent-2);
 }
-.trio-chip.seven {
-  background: linear-gradient(45deg, var(--accent-2), var(--orange));
-  color: white;
+.trio-group.seven {
+  background: linear-gradient(45deg, rgba(255, 193, 7, 0.4), rgba(255, 126, 58, 0.4));
+  border-color: var(--orange);
+  box-shadow: 0 0 6px rgba(255, 126, 58, 0.5);
 }
+.trio-card {
+  width: 22px;
+  height: 32px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 3px;
+  border: 1px solid #000;
+}
+.me-area .trio-card { width: 30px; height: 44px; }
+.me-area .trio-group { padding: 4px; gap: 3px; }
 
 /* Center area */
 .center-area {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-direction: row;
+  align-items: flex-start;
   justify-content: center;
-  gap: 12px;
+  gap: 18px;
   min-height: 0;
+  flex-wrap: wrap;
 }
 .reveal-strip {
+  background: white;
+  padding: 10px 12px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  min-width: 150px;
   text-align: center;
-  min-height: 30px;
 }
 .reveal-label {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: #777;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  font-weight: 700;
 }
 .reveal-row {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  min-height: 60px;
+}
+.reveal-row .reveal-entry {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  justify-content: center;
-  min-height: 90px;
+}
+.reveal-row .reveal-entry .card {
+  width: 44px;
+  height: 64px;
+  border-width: 1.5px;
+}
+.reveal-row .reveal-meta {
+  font-size: 10px;
+  color: #666;
+  text-align: left;
+  line-height: 1.2;
 }
 .reveal-result {
-  margin-top: 6px;
+  margin-top: 8px;
   font-weight: 700;
-  height: 22px;
+  min-height: 22px;
+  font-size: 13px;
 }
 .reveal-result.fail { color: #c0392b; }
 .reveal-result.trio { color: var(--green); }
+.reveal-strip .target-pill {
+  display: inline-block;
+  background: var(--ink);
+  color: white;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
 
 .middle {
   display: grid;
@@ -449,12 +502,10 @@ button.ghost {
 }
 .card.empty-slot {
   background: transparent;
-  border: 2px dashed rgba(0, 0, 0, 0.18);
+  border: 0;
   box-shadow: none;
   cursor: default;
-}
-.card.empty-slot::after {
-  content: "";
+  visibility: hidden;
 }
 
 /* My area */
@@ -571,6 +622,12 @@ button.ghost {
 .card.highlight {
   outline: 3px solid var(--accent-2);
   outline-offset: 2px;
+}
+.card.revealed-from-me {
+  outline: 3px solid var(--accent-2);
+  outline-offset: -2px;
+  transform: translateY(-6px);
+  filter: brightness(1.05);
 }
 
 /* Middle face-down: subtle pattern */
