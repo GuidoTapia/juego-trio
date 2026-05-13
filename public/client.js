@@ -234,6 +234,7 @@ function renderGame() {
   if (me?.hand) {
     const lowRevealed = countOwnReveals("lowest");
     const highRevealed = countOwnReveals("highest");
+    const availIdxs = isMyTurn && !state.turn?.pendingResolve ? computeMyAvailable() : [];
     me.hand.forEach((num, idx) => {
       const card = document.createElement("div");
       card.className = "card face";
@@ -242,13 +243,14 @@ function renderGame() {
       const isRevealedFromMe =
         idx < lowRevealed || idx >= me.hand.length - highRevealed;
       if (isRevealedFromMe) card.classList.add("revealed-from-me");
-      if (isMyTurn && !state.turn?.pendingResolve && !isRevealedFromMe) {
-        const availIdxs = computeMyAvailable();
-        if (
-          availIdxs.length > 0 &&
-          (idx === availIdxs[0] || idx === availIdxs[availIdxs.length - 1])
-        ) {
-          card.classList.add("highlight");
+      // Tappable end cards (lowest at left, highest at right) on my turn.
+      if (!isRevealedFromMe && availIdxs.length > 0) {
+        if (idx === availIdxs[0]) {
+          card.classList.add("highlight", "clickable");
+          card.onclick = () => sendAction({ type: "ask", playerId: myId, which: "lowest" });
+        } else if (availIdxs.length > 1 && idx === availIdxs[availIdxs.length - 1]) {
+          card.classList.add("highlight", "clickable");
+          card.onclick = () => sendAction({ type: "ask", playerId: myId, which: "highest" });
         }
       }
       handEl.appendChild(card);
@@ -444,3 +446,145 @@ function escapeHTML(s) {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 }
+
+/* =================== Tutorial =================== */
+function cardImg(n, extraClass = "") {
+  return `<div class="tut-card ${extraClass}" style="background-image:url('/cartas/carta-trio-${n}.webp')"></div>`;
+}
+function backImg() {
+  return `<div class="tut-card back"></div>`;
+}
+
+const TUTORIAL_STEPS = [
+  {
+    title: "¿Qué es Trio?",
+    body: `
+      <p>Trio es un juego rápido en el que <span class="key">tres es el número mágico</span>.</p>
+      <p>El mazo tiene 36 cartas: 3 copias de cada número del 1 al 12. Tu objetivo es completar trios (3 cartas iguales) antes que los demás.</p>
+      <div class="tutorial-visual">
+        ${cardImg(5)}${cardImg(5)}${cardImg(5)}
+      </div>
+    `,
+  },
+  {
+    title: "El reparto",
+    body: `
+      <p>Cada jugador recibe varias cartas en su mano, <span class="key">ordenadas de menor a mayor</span>. Las cartas que sobran se ponen boca abajo en el centro de la mesa.</p>
+      <div class="tutorial-visual">
+        ${backImg()}${backImg()}${backImg()}${backImg()}${backImg()}
+      </div>
+      <p>Nadie ve las cartas de nadie — ni siquiera las del centro.</p>
+    `,
+  },
+  {
+    title: "En tu turno",
+    body: `
+      <p>Tienes dos formas de revelar cartas, una a la vez:</p>
+      <ul>
+        <li>Pulsa <span class="key">↓ Más baja</span> o <span class="key">↑ Más alta</span> en cualquier jugador (incluido tú) para destapar la carta del extremo de su mano.</li>
+        <li>O pulsa una carta del <span class="key">centro</span> para destaparla.</li>
+      </ul>
+      <p>La <strong>primera</strong> carta revelada define el número que estás cazando.</p>
+    `,
+  },
+  {
+    title: "Coincidir o fallar",
+    body: `
+      <p>Una vez fijado el número, sigues revelando. Tienes dos finales posibles:</p>
+      <div class="tutorial-visual outcome">
+        <div class="outcome-row">
+          <span class="outcome-label ok">¡Trio!</span>
+          ${cardImg(8)}${cardImg(8)}${cardImg(8)}
+        </div>
+        <div class="outcome-row">
+          <span class="outcome-label fail">Falla</span>
+          ${cardImg(8)}${cardImg(8)}${cardImg(3)}
+        </div>
+      </div>
+      <p>Si las 3 coinciden, te llevas el trio. Si una no coincide, las cartas vuelven a su sitio y pasa el turno.</p>
+    `,
+  },
+  {
+    title: "Cómo ganar",
+    body: `
+      <p>Gana el primero que reúna:</p>
+      <ul>
+        <li><span class="key">3 trios</span> cualesquiera, o</li>
+        <li>El <span class="key">trio del 7</span> (vale como victoria inmediata).</li>
+      </ul>
+      <div class="tutorial-visual">
+        ${cardImg(7)}${cardImg(7)}${cardImg(7)}
+      </div>
+      <p>El 7 está en el medio del rango (1-12) y es difícil de cazar — por eso es el premio mayor.</p>
+    `,
+  },
+  {
+    title: "¡A jugar!",
+    body: `
+      <p>Vamos a abrir una partida con 2 bots para que pruebes. Cuando sea tu turno, mira los <strong>botones ↓ ↑</strong> de cada jugador o pulsa las cartas de los extremos de tu mano.</p>
+      <p>Si te trabas, este tutorial vuelve a estar disponible desde el menú principal.</p>
+    `,
+    finalAction: { label: "Empezar partida con bots", run: startTutorialGame },
+  },
+];
+
+let tutorialIdx = 0;
+
+function openTutorial() {
+  tutorialIdx = 0;
+  renderTutorial();
+  $("tutorial-overlay").classList.remove("hidden");
+}
+function closeTutorial() {
+  $("tutorial-overlay").classList.add("hidden");
+}
+function renderTutorial() {
+  const step = TUTORIAL_STEPS[tutorialIdx];
+  $("tutorial-body").innerHTML = `<h2>${escapeHTML(step.title)}</h2>${step.body}`;
+  $("tutorial-progress").textContent = `${tutorialIdx + 1} / ${TUTORIAL_STEPS.length}`;
+  $("tutorial-prev").disabled = tutorialIdx === 0;
+  const next = $("tutorial-next");
+  if (tutorialIdx === TUTORIAL_STEPS.length - 1 && step.finalAction) {
+    next.textContent = step.finalAction.label;
+  } else if (tutorialIdx === TUTORIAL_STEPS.length - 1) {
+    next.textContent = "Cerrar";
+  } else {
+    next.textContent = "Siguiente";
+  }
+}
+function nextTutorial() {
+  const step = TUTORIAL_STEPS[tutorialIdx];
+  if (tutorialIdx === TUTORIAL_STEPS.length - 1) {
+    closeTutorial();
+    if (step.finalAction) step.finalAction.run();
+    return;
+  }
+  tutorialIdx++;
+  renderTutorial();
+}
+function prevTutorial() {
+  if (tutorialIdx > 0) { tutorialIdx--; renderTutorial(); }
+}
+
+function startTutorialGame() {
+  const name = ($("input-name").value || "").trim() || "Tú";
+  localStorage.setItem("trio:name", name);
+  callOK("createRoom", { name }, (res) => {
+    if (!res?.ok) return;
+    inRoom = true;
+    socket.emit("addBot", {}, (r1) => {
+      if (!r1?.ok) return toast(r1?.error || "Error añadiendo bot");
+      socket.emit("addBot", {}, (r2) => {
+        if (!r2?.ok) return toast(r2?.error || "Error añadiendo bot");
+        socket.emit("startGame", {}, (r3) => {
+          if (!r3?.ok) toast(r3?.error || "Error empezando");
+        });
+      });
+    });
+  });
+}
+
+$("btn-tutorial").onclick = openTutorial;
+$("tutorial-close").onclick = closeTutorial;
+$("tutorial-next").onclick = nextTutorial;
+$("tutorial-prev").onclick = prevTutorial;

@@ -68,6 +68,19 @@ html, body {
   background-clip: text;
   color: transparent;
 }
+.logo-img {
+  display: block;
+  width: 100%;
+  max-width: 340px;
+  height: auto;
+  margin: 0 auto 6px;
+}
+button.ghost.wide {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
 
 .tagline {
   color: #555;
@@ -545,9 +558,21 @@ button.ghost {
 }
 .hand {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-top: 8px;
+}
+.hand::-webkit-scrollbar { display: none; }
+.hand .card {
+  flex-shrink: 0;
+  margin-right: -10px;
+}
+.hand .card:last-child { margin-right: 0; }
+.hand .card.highlight,
+.hand .card.revealed-from-me {
+  z-index: 3;
 }
 
 .actions {
@@ -729,17 +754,24 @@ button.ghost {
   .reveal-row .reveal-meta { font-size: 9px; }
   .reveal-label { font-size: 10px; margin-bottom: 4px; }
 
-  /* My hand row: cards in the middle, buttons flanking, all smaller */
+  /* My hand row: keep cards in ONE row by shrinking + overlapping them.
+     Buttons compact and hugging the hand on each side. */
   .me-info { font-size: 12px; gap: 6px; flex-wrap: wrap; justify-content: center; }
   .me-area .trio-card { width: 22px; height: 32px; }
-  .me-hand-row { gap: 6px; }
+  .me-hand-row { gap: 4px; flex-wrap: nowrap; }
   .me-hand-row .me-btn {
-    padding: 8px 8px;
+    padding: 8px 6px;
     font-size: 11px;
     min-width: 0;
     flex: 0 0 auto;
   }
-  .hand { gap: 2px; }
+  .hand {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-top: 6px;
+  }
+  .hand .card { width: 48px; height: 72px; margin-right: -16px; }
+  .hand .card:last-child { margin-right: 0; }
   .actions { min-height: 0; font-size: 12px; }
   .actions .group-label { font-size: 11px; text-align: center; }
 
@@ -761,6 +793,7 @@ button.ghost {
   .opp-hand .mini-card { width: 18px; height: 26px; margin-right: -10px; }
   .opp-btn { font-size: 10px; padding: 3px 4px; }
   .me-hand-row .me-btn { font-size: 10px; padding: 6px; }
+  .hand .card { width: 40px; height: 60px; margin-right: -18px; }
 }
 
 /* =================== OVERLAYS =================== */
@@ -804,6 +837,99 @@ button.ghost {
   font-weight: 600;
 }
 .toast.hidden { display: none; }
+
+/* =================== TUTORIAL =================== */
+.tutorial-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  width: min(520px, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+.tutorial-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: transparent;
+  color: #888;
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.tutorial-close:hover { background: #f4f4f4; color: var(--ink); }
+.tutorial-card h2 {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 22px;
+}
+.tutorial-card p {
+  color: #333;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.tutorial-card ul { margin: 6px 0 10px; padding-left: 22px; line-height: 1.55; }
+.tutorial-card li { margin: 4px 0; }
+.tutorial-visual {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.tutorial-visual .tut-card {
+  width: 50px;
+  height: 74px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  border: 1.5px solid #000;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+.tutorial-visual .tut-card.back {
+  background-image:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.05), transparent 40%),
+    var(--card-back);
+}
+.tutorial-visual .tut-arrow {
+  font-size: 18px;
+  color: #888;
+}
+.tutorial-visual.outcome {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.tutorial-visual .outcome-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tutorial-visual .outcome-label {
+  min-width: 72px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.tutorial-visual .outcome-label.ok { color: var(--green); }
+.tutorial-visual .outcome-label.fail { color: #c0392b; }
+.tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  gap: 10px;
+}
+.tutorial-progress {
+  font-size: 12px;
+  color: #888;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.tutorial-card .key { font-weight: 700; color: var(--accent); }
 
 @keyframes fade-in {
   from { opacity: 0; }

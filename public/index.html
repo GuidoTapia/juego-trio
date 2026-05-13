@@ -11,7 +11,7 @@
     <!-- Lobby (pre-room) -->
     <section id="screen-home" class="screen active">
       <div class="home-card">
-        <h1 class="logo">TRIO</h1>
+        <img src="trio-logo.webp" alt="TRIO" class="logo-img" />
         <p class="tagline">Three is the magic number. 3-6 jugadores en tiempo real.</p>
 
         <label class="field">
@@ -27,6 +27,8 @@
             <button id="btn-join">Unirse</button>
           </div>
         </div>
+
+        <button id="btn-tutorial" class="ghost wide">¿Primera vez? Hacer tutorial</button>
 
         <p class="hint">
           Comparte el código de tu sala con tus amigos, o añade bots para jugar en solitario.
@@ -108,6 +110,19 @@
         </div>
       </div>
     </section>
+
+    <!-- Tutorial overlay (driven by client.js) -->
+    <div id="tutorial-overlay" class="overlay hidden">
+      <div class="tutorial-card">
+        <button id="tutorial-close" class="tutorial-close" title="Cerrar">×</button>
+        <div id="tutorial-body"></div>
+        <div class="tutorial-footer">
+          <button id="tutorial-prev" class="ghost">Atrás</button>
+          <span id="tutorial-progress" class="tutorial-progress"></span>
+          <button id="tutorial-next" class="primary">Siguiente</button>
+        </div>
+      </div>
+    </div>
 
     <div id="toast" class="toast hidden"></div>
   </div>
