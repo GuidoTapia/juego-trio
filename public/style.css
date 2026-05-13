@@ -436,7 +436,7 @@ button.ghost {
   border-radius: 12px;
   box-shadow: var(--shadow);
   min-width: 150px;
-  text-align: center;
+  text-align: left;
 }
 .reveal-label {
   font-size: 11px;
@@ -450,7 +450,7 @@ button.ghost {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: center;
+  align-items: flex-start;
   min-height: 60px;
 }
 .reveal-row .reveal-entry {
@@ -683,11 +683,12 @@ button.ghost {
   }
   .center-area {
     overflow-y: auto;
-    flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 8px;
     padding: 4px;
     min-height: 0;
+    /* Keep middle + reveal strip side-by-side; let wrap kick in only if the
+       middle grid is genuinely too wide for the viewport. */
   }
   .me-area {
     padding: 8px;
@@ -712,21 +713,19 @@ button.ghost {
   .trio-card { width: 16px; height: 24px; }
   .trio-group { padding: 2px; gap: 1px; }
 
-  /* Middle grid + reveal strip stack vertically */
+  /* Middle grid stays on the left, reveal strip vertical on the right */
   .middle { padding: 6px; gap: 4px; }
   .reveal-strip {
-    min-width: auto;
-    width: 100%;
+    min-width: 92px;
     padding: 6px 8px;
-    max-width: 320px;
+    flex: 0 0 auto;
   }
   .reveal-row {
-    flex-direction: row;
-    flex-wrap: wrap;
-    min-height: 0;
+    /* keep vertical column */
     gap: 4px;
+    min-height: 0;
   }
-  .reveal-row .reveal-entry { gap: 2px; }
+  .reveal-row .reveal-entry { gap: 4px; }
   .reveal-row .reveal-meta { font-size: 9px; }
   .reveal-label { font-size: 10px; margin-bottom: 4px; }
 
