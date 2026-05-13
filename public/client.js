@@ -160,7 +160,7 @@ function renderGame() {
     let handHTML = "";
     // Leftmost: revealed-as-lowest cards (face up, in reveal order).
     for (const num of reveals.low) {
-      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${num}.png')"></div>`;
+      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${num}.webp')"></div>`;
     }
     // Middle: still-hidden cards (card backs).
     const hidden = Math.max(0, p.handSize - reveals.low.length - reveals.high.length);
@@ -168,7 +168,7 @@ function renderGame() {
     // Rightmost: revealed-as-highest cards (face up, in reverse so the actual hand
     // highest appears furthest right).
     for (let i = reveals.high.length - 1; i >= 0; i--) {
-      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${reveals.high[i]}.png')"></div>`;
+      handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${reveals.high[i]}.webp')"></div>`;
     }
     const avail = computeAvailableForPlayer(p.id);
     div.innerHTML = `
@@ -203,7 +203,7 @@ function renderGame() {
     } else if (cell.faceUp) {
       c.classList.add("face", "flipped");
       c.dataset.num = cell.number;
-      c.style.backgroundImage = `url('/cartas/carta-trio-${cell.number}.png')`;
+      c.style.backgroundImage = `url('/cartas/carta-trio-${cell.number}.webp')`;
     }
     const canClick = canAct && !cell.taken && !cell.faceUp;
     if (canClick) {
@@ -230,7 +230,7 @@ function renderGame() {
       const card = document.createElement("div");
       card.className = "card face";
       card.dataset.num = num;
-      card.style.backgroundImage = `url('/cartas/carta-trio-${num}.png')`;
+      card.style.backgroundImage = `url('/cartas/carta-trio-${num}.webp')`;
       const isRevealedFromMe =
         idx < lowRevealed || idx >= me.hand.length - highRevealed;
       if (isRevealedFromMe) card.classList.add("revealed-from-me");
@@ -289,7 +289,7 @@ function renderRevealStrip() {
       ? `${escapeHTML(r.playerName)}<br>${r.which === "lowest" ? "↓ baja" : "↑ alta"}`
       : "centro";
     entry.innerHTML = `
-      <div class="card face flipped" style="background-image:url('/cartas/carta-trio-${r.number}.png')" data-num="${r.number}"></div>
+      <div class="card face flipped" style="background-image:url('/cartas/carta-trio-${r.number}.webp')" data-num="${r.number}"></div>
       <div class="reveal-meta">${meta}</div>
     `;
     row.appendChild(entry);
@@ -394,7 +394,7 @@ function computeAvailableForPlayer(pid) {
 function renderTrios(trios) {
   return trios
     .map((n) => {
-      const card = `<div class="trio-card" style="background-image:url('/cartas/carta-trio-${n}.png')"></div>`;
+      const card = `<div class="trio-card" style="background-image:url('/cartas/carta-trio-${n}.webp')"></div>`;
       return `<div class="trio-group ${n === 7 ? "seven" : ""}" title="Trio del ${n}">${card}${card}${card}</div>`;
     })
     .join(" ");
