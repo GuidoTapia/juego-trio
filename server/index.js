@@ -58,7 +58,7 @@ function broadcastRoom(code) {
   const room = rooms.get(code);
   if (!room) return;
   for (const p of room.players) {
-    if (p.isBot) continue;
+    if (p.isBot || !p.connected) continue;
     io.to(p.id).emit("state", viewFor(room, p.id));
   }
 }

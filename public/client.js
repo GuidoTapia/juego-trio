@@ -10,6 +10,10 @@ const screens = {
 
 let state = null;
 let myId = null;
+// Flips to true while we're in a room. Used to ignore in-flight state messages
+// that the server may have emitted before our leaveRoom was processed — without
+// this guard, leaving from the winner overlay flickers back to the game.
+let inRoom = false;
 const stored = {
   name: localStorage.getItem("trio:name") || "",
 };
@@ -40,7 +44,7 @@ $("btn-create").onclick = () => {
   if (!name) return toast("Pon un nombre");
   localStorage.setItem("trio:name", name);
   callOK("createRoom", { name }, (res) => {
-    if (res?.ok) showScreen("room");
+    if (res?.ok) { inRoom = true; showScreen("room"); }
   });
 };
 $("btn-join").onclick = () => {
@@ -50,7 +54,7 @@ $("btn-join").onclick = () => {
   if (!code) return toast("Falta el código");
   localStorage.setItem("trio:name", name);
   callOK("joinRoom", { name, code }, (res) => {
-    if (res?.ok) showScreen("room");
+    if (res?.ok) { inRoom = true; showScreen("room"); }
   });
 };
 $("input-code").addEventListener("input", (e) => {
@@ -69,8 +73,11 @@ $("btn-leave-2").onclick = () => leaveRoom();
 $("btn-leave-3").onclick = () => leaveRoom();
 
 function leaveRoom() {
+  inRoom = false;
   socket.emit("leaveRoom");
   state = null;
+  // Force-hide the winner overlay in case we're leaving from it.
+  $("winner-overlay").classList.add("hidden");
   showScreen("home");
 }
 
@@ -80,6 +87,7 @@ $("btn-start").onclick = () => callOK("startGame", {});
 /* =================== Socket events =================== */
 socket.on("connect", () => { myId = socket.id; });
 socket.on("state", (s) => {
+  if (!inRoom) return; // ignore stragglers after we explicitly left
   state = s;
   myId = s.you;
   render();

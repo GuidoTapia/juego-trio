@@ -664,12 +664,104 @@ button.ghost {
 .log .entry.win { color: var(--green); font-weight: 700; }
 
 @media (max-width: 700px) {
+  /* ============= MOBILE LAYOUT =============
+     Goal: my hand + action buttons stay anchored at the bottom; opponents,
+     middle and reveal strip scroll vertically above without ever overlapping
+     the hand area.                                                          */
+  .topbar { padding: 6px 10px; font-size: 13px; }
+  .turn-banner { font-size: 12px; padding: 3px 8px; }
+  .code { font-size: 13px; padding: 2px 6px; }
+
+  .table {
+    padding: 8px;
+    gap: 6px;
+    /* Grid: opponents (auto) | center (1fr, scroll) | me-area (auto) */
+  }
+  .opponents {
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+  .center-area {
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    min-height: 0;
+  }
+  .me-area {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  /* Smaller cards on phone */
+  .card { width: 52px; height: 78px; border-width: 1.5px; border-radius: 6px; }
+  .card.small { width: 42px; height: 64px; }
+  .middle .card { width: 52px; height: 78px; }
+  .reveal-row .reveal-entry .card { width: 38px; height: 56px; }
+
+  /* Opponent panels: smaller and tighter */
+  .opponent { min-width: 96px; padding: 5px 6px; border-width: 2px; }
+  .opponent .name { font-size: 12px; }
+  .opponent .stats { font-size: 10px; }
+  .opp-hand { height: 38px; }
+  .opp-hand .mini-card { width: 22px; height: 32px; margin-right: -12px; }
+  .opp-actions { gap: 4px; margin-top: 4px; }
+  .opp-btn { padding: 4px 6px; font-size: 11px; }
+  .opp-trios { gap: 2px; min-height: 18px; }
+  .trio-card { width: 16px; height: 24px; }
+  .trio-group { padding: 2px; gap: 1px; }
+
+  /* Middle grid + reveal strip stack vertically */
+  .middle { padding: 6px; gap: 4px; }
+  .reveal-strip {
+    min-width: auto;
+    width: 100%;
+    padding: 6px 8px;
+    max-width: 320px;
+  }
+  .reveal-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-height: 0;
+    gap: 4px;
+  }
+  .reveal-row .reveal-entry { gap: 2px; }
+  .reveal-row .reveal-meta { font-size: 9px; }
+  .reveal-label { font-size: 10px; margin-bottom: 4px; }
+
+  /* My hand row: cards in the middle, buttons flanking, all smaller */
+  .me-info { font-size: 12px; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .me-area .trio-card { width: 22px; height: 32px; }
+  .me-hand-row { gap: 6px; }
+  .me-hand-row .me-btn {
+    padding: 8px 8px;
+    font-size: 11px;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+  .hand { gap: 2px; }
+  .actions { min-height: 0; font-size: 12px; }
+  .actions .group-label { font-size: 11px; text-align: center; }
+
+  /* Log goes inline, very compact, below the topbar status */
   .log {
     position: static;
     width: auto;
-    margin: 8px;
-    max-height: 100px;
+    margin: 6px 8px 0;
+    max-height: 60px;
+    font-size: 11px;
+    padding: 6px 8px;
   }
+}
+
+@media (max-width: 380px) {
+  .card { width: 44px; height: 66px; }
+  .middle .card { width: 44px; height: 66px; }
+  .opponent { min-width: 84px; padding: 4px; }
+  .opp-hand .mini-card { width: 18px; height: 26px; margin-right: -10px; }
+  .opp-btn { font-size: 10px; padding: 3px 4px; }
+  .me-hand-row .me-btn { font-size: 10px; padding: 6px; }
 }
 
 /* =================== OVERLAYS =================== */
