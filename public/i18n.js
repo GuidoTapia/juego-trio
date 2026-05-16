@@ -67,7 +67,7 @@ const TRANSLATIONS = {
     "game.reveal_meta_middle": "middle",
     "game.reveal_trio": "TRIO OF {n}!",
     "game.reveal_fail": "{got} ≠ {target}",
-    "game.bot_control_banner": "A bot took your seat while you were away.",
+    "game.bot_control_banner": "A bot has taken over your seat.",
     "game.take_control": "Take back control",
     "game.bot_badge_title": "A bot is playing this seat",
     "game.connected_title": "Connected trios — a winning pair in Spicy mode",
@@ -104,6 +104,7 @@ const TRANSLATIONS = {
     "log.win_three": "{name} WINS with 3 trios!",
     "log.win_connected": "{name} WINS with 2 connected trios!",
     "log.bot_takeover": "{name} was away too long — a bot takes their seat.",
+    "log.afk_takeover": "{name} took too long to play — a bot takes their turn.",
     "log.control_resumed": "{name} is back in control of their seat.",
 
     // --- Tutorial overlay ---
@@ -206,7 +207,7 @@ const TRANSLATIONS = {
     "game.reveal_meta_middle": "centro",
     "game.reveal_trio": "¡TRIO DEL {n}!",
     "game.reveal_fail": "{got} ≠ {target}",
-    "game.bot_control_banner": "Un bot tomó tu lugar mientras estabas ausente.",
+    "game.bot_control_banner": "Un bot tomó el control de tu lugar.",
     "game.take_control": "Retomar el control",
     "game.bot_badge_title": "Un bot está jugando este lugar",
     "game.connected_title": "Trios conectados — pareja ganadora en modo Picante",
@@ -240,6 +241,7 @@ const TRANSLATIONS = {
     "log.win_three": "¡{name} GANA con 3 trios!",
     "log.win_connected": "¡{name} GANA con 2 trios conectados!",
     "log.bot_takeover": "{name} estuvo ausente demasiado tiempo — un bot toma su lugar.",
+    "log.afk_takeover": "{name} tardó demasiado en jugar — un bot toma su turno.",
     "log.control_resumed": "{name} retomó el control de su lugar.",
 
     "tutorial.step1.title": "¿Qué es Trio?",

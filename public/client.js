@@ -736,7 +736,7 @@ function startTutorialGame() {
   const fallback = getLang() === "es" ? "Tú" : "You";
   const name = ($("input-name").value || "").trim() || fallback;
   localStorage.setItem("trio:name", name);
-  callOK("createRoom", { name }, (res) => {
+  callOK("createRoom", { name, token: myToken, tutorial: true }, (res) => {
     if (!res?.ok) return;
     inRoom = true;
     isTutorial = true;
