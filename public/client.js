@@ -18,10 +18,42 @@ let inRoom = false;
 // When true and the first state arrives, we run a coachmark sequence.
 let isTutorial = false;
 let tutorialCoachShown = false;
+
+// Persistent client identity: lets the server reattach this user to an existing
+// player slot after a refresh or accidental disconnect. Lives in localStorage.
+let myToken = localStorage.getItem("trio:token");
+if (!myToken) {
+  myToken = (crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  localStorage.setItem("trio:token", myToken);
+}
+
 const stored = {
   name: localStorage.getItem("trio:name") || "",
 };
 if (stored.name) $("input-name").value = stored.name;
+// Pre-fill the join code if the page was opened with a shared room URL.
+{
+  const urlRoom = getUrlRoom();
+  if (urlRoom) $("input-code").value = urlRoom;
+}
+
+// URL hash <-> room code. Sharing the URL is enough to invite someone or to
+// recover your own session after a reload.
+function getUrlRoom() {
+  const raw = (location.hash || "").replace(/^#/, "").toUpperCase();
+  return /^[A-Z0-9]{4}$/.test(raw) ? raw : "";
+}
+function setUrlRoom(code) {
+  if (!code) return;
+  if (location.hash !== `#${code}`) {
+    history.replaceState(null, "", `#${code}`);
+  }
+}
+function clearUrlRoom() {
+  if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+}
 
 function showScreen(name) {
   for (const k of Object.keys(screens)) screens[k].classList.toggle("active", k === name);
@@ -47,8 +79,12 @@ $("btn-create").onclick = () => {
   const name = $("input-name").value.trim();
   if (!name) return toast(t("toast.need_name"));
   localStorage.setItem("trio:name", name);
-  callOK("createRoom", { name }, (res) => {
-    if (res?.ok) { inRoom = true; showScreen("room"); }
+  callOK("createRoom", { name, token: myToken }, (res) => {
+    if (res?.ok) {
+      inRoom = true;
+      setUrlRoom(res.code);
+      showScreen("room");
+    }
   });
 };
 $("btn-join").onclick = () => {
@@ -57,8 +93,12 @@ $("btn-join").onclick = () => {
   if (!name) return toast(t("toast.need_name"));
   if (!code) return toast(t("toast.need_code"));
   localStorage.setItem("trio:name", name);
-  callOK("joinRoom", { name, code }, (res) => {
-    if (res?.ok) { inRoom = true; showScreen("room"); }
+  callOK("joinRoom", { name, code, token: myToken }, (res) => {
+    if (res?.ok) {
+      inRoom = true;
+      setUrlRoom(res.code);
+      showScreen("room");
+    }
   });
 };
 $("input-code").addEventListener("input", (e) => {
@@ -83,6 +123,7 @@ function leaveRoom() {
   endCoachmarks();
   socket.emit("leaveRoom");
   state = null;
+  clearUrlRoom();
   // Force-hide the winner overlay in case we're leaving from it.
   $("winner-overlay").classList.add("hidden");
   showScreen("home");
@@ -91,12 +132,52 @@ function leaveRoom() {
 $("btn-add-bot").onclick = () => callOK("addBot", {});
 $("btn-start").onclick = () => callOK("startGame", {});
 
+// Runs on every socket (re)connection. Two jobs:
+//  - If we believe we're still in a room (e.g. the socket dropped mid-game),
+//    silently re-bind to our slot via the persistent token.
+//  - On a fresh load where the URL carries a room code, try to walk straight
+//    back into that room. If we have no saved name yet, just pre-fill the code.
+function attemptAutoRejoin() {
+  const code = (inRoom && state?.code) ? state.code : getUrlRoom();
+  if (!code) return;
+  const name = (localStorage.getItem("trio:name") || "").trim();
+  if (!name) {
+    $("input-code").value = code;
+    return;
+  }
+  socket.emit("joinRoom", { name, code, token: myToken }, (res) => {
+    if (res?.ok) {
+      inRoom = true;
+      setUrlRoom(res.code);
+      if (!screens.room.classList.contains("active") &&
+          !screens.game.classList.contains("active")) {
+        showScreen("room");
+      }
+    } else if (inRoom) {
+      // We thought we were in a room but the server no longer knows us
+      // (room expired, server restarted…). Fall back to the home screen.
+      inRoom = false;
+      state = null;
+      clearUrlRoom();
+      showScreen("home");
+      toast(res?.error || t("toast.error"));
+    } else {
+      // Fresh load, room unavailable — keep the code handy for a manual retry.
+      $("input-code").value = code;
+    }
+  });
+}
+
 /* =================== Socket events =================== */
-socket.on("connect", () => { myId = socket.id; });
+socket.on("connect", () => {
+  myId = socket.id;
+  attemptAutoRejoin();
+});
 socket.on("state", (s) => {
   if (!inRoom) return; // ignore stragglers after we explicitly left
   state = s;
   myId = s.you;
+  setUrlRoom(s.code);
   render();
   // Tutorial-mode coachmarks: once the first "playing" state lands, walk the
   // player through the table before they make their first move.
@@ -176,7 +257,8 @@ function renderGame() {
     const isCurrent = p.id === state.currentPlayerId;
     const div = document.createElement("div");
     div.className = "opponent" + (isCurrent ? " turn" : "") +
-      (!p.connected ? " disconnected" : "") + (p.handSize === 0 ? " empty" : "");
+      (!p.connected ? " disconnected" : "") + (p.handSize === 0 ? " empty" : "") +
+      (p.botControlled ? " bot-controlled" : "");
     const triosHTML = renderTrios(p.trios);
     const reveals = playerRevealsThisTurn(p.id);
     let handHTML = "";
@@ -193,8 +275,14 @@ function renderGame() {
       handHTML += `<div class="mini-card face" style="background-image:url('/cartas/carta-trio-${reveals.high[i]}.webp')"></div>`;
     }
     const avail = computeAvailableForPlayer(p.id);
+    let statusTag = "";
+    if (p.botControlled) {
+      statusTag = ` <span class="bot-tag" title="${t("game.bot_badge_title")}">🤖</span>`;
+    } else if (!p.connected) {
+      statusTag = ` <span style="font-size:10px;color:#c00">${t("game.opp_disconnected")}</span>`;
+    }
     div.innerHTML = `
-      <div class="name">${escapeHTML(p.name)}${!p.connected ? ` <span style="font-size:10px;color:#c00">${t("game.opp_disconnected")}</span>` : ""}</div>
+      <div class="name">${escapeHTML(p.name)}${statusTag}</div>
       <div class="stats">${t("game.cards_count", { n: p.handSize })}</div>
       <div class="opp-hand">${handHTML}</div>
       <div class="opp-trios">${triosHTML}</div>
@@ -274,6 +362,14 @@ function renderGame() {
   renderMeActions(isMyTurn);
   renderActions(isMyTurn);
   renderLog();
+
+  // Bot-takeover banner: shown when I'm back but a bot still holds my seat.
+  const takeoverBanner = $("takeover-banner");
+  if (state.phase === "playing" && me?.botControlled) {
+    takeoverBanner.classList.remove("hidden");
+  } else {
+    takeoverBanner.classList.add("hidden");
+  }
 
   // Winner overlay
   const overlay = $("winner-overlay");
@@ -462,6 +558,7 @@ function sendAction(action) {
 }
 
 $("btn-play-again").onclick = () => callOK("playAgain", {});
+$("btn-take-control").onclick = () => callOK("takeControl", {});
 
 function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({

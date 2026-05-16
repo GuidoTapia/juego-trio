@@ -60,6 +60,9 @@ const TRANSLATIONS = {
     "game.reveal_meta_middle": "middle",
     "game.reveal_trio": "TRIO OF {n}!",
     "game.reveal_fail": "{got} ≠ {target}",
+    "game.bot_control_banner": "A bot took your seat while you were away.",
+    "game.take_control": "Take back control",
+    "game.bot_badge_title": "A bot is playing this seat",
 
     // --- Winner overlay ---
     "winner.title_self": "You win! 🎉",
@@ -87,6 +90,8 @@ const TRANSLATIONS = {
     "log.fail": "Revealed cards ({reveals}) don't match. Cards go back.",
     "log.win_seven": "{name} WINS with the 7 trio!",
     "log.win_three": "{name} WINS with 3 trios!",
+    "log.bot_takeover": "{name} was away too long — a bot takes their seat.",
+    "log.control_resumed": "{name} is back in control of their seat.",
 
     // --- Tutorial overlay ---
     "tutorial.step1.title": "What is Trio?",
@@ -181,6 +186,9 @@ const TRANSLATIONS = {
     "game.reveal_meta_middle": "centro",
     "game.reveal_trio": "¡TRIO DEL {n}!",
     "game.reveal_fail": "{got} ≠ {target}",
+    "game.bot_control_banner": "Un bot tomó tu lugar mientras estabas ausente.",
+    "game.take_control": "Retomar el control",
+    "game.bot_badge_title": "Un bot está jugando este lugar",
 
     "winner.title_self": "¡Has ganado! 🎉",
     "winner.title_other": "Gana {name}",
@@ -205,6 +213,8 @@ const TRANSLATIONS = {
     "log.fail": "Las cartas reveladas ({reveals}) no coinciden. Las cartas vuelven.",
     "log.win_seven": "¡{name} GANA con el trio del 7!",
     "log.win_three": "¡{name} GANA con 3 trios!",
+    "log.bot_takeover": "{name} estuvo ausente demasiado tiempo — un bot toma su lugar.",
+    "log.control_resumed": "{name} retomó el control de su lugar.",
 
     "tutorial.step1.title": "¿Qué es Trio?",
     "tutorial.step1.body": "<p>Trio es un juego rápido en el que <span class=\"key\">tres es el número mágico</span>.</p><p>El mazo tiene 36 cartas: 3 copias de cada número del 1 al 12. Tu objetivo es completar trios (3 cartas iguales) antes que los demás.</p>",

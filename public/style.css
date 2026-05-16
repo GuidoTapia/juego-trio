@@ -1034,3 +1034,29 @@ button.ghost {
 .opponent.empty .opp-hand {
   opacity: 0.3;
 }
+
+/* Bot takeover */
+.takeover-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: linear-gradient(90deg, var(--accent-2), var(--orange));
+  color: var(--ink);
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.takeover-banner.hidden { display: none; }
+.takeover-banner button {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+.bot-tag {
+  font-size: 12px;
+  cursor: help;
+}
+.opponent.bot-controlled {
+  border-color: var(--orange);
+}

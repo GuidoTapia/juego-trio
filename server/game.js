@@ -44,7 +44,7 @@ export function createRoom(code, hostName) {
   };
 }
 
-export function addPlayer(room, { id, name, isBot = false }) {
+export function addPlayer(room, { id, name, isBot = false, token = null }) {
   if (room.phase !== "lobby") throw new Error("La partida ya empezó");
   if (room.players.length >= 6) throw new Error("Sala llena");
   if (room.players.some((p) => p.name.toLowerCase() === name.toLowerCase()))
@@ -56,10 +56,29 @@ export function addPlayer(room, { id, name, isBot = false }) {
     hand: [],
     trios: [],
     connected: true,
+    // Persistent identity (set by the client, survives socket disconnects).
+    token,
+    // True when a bot has taken over this human's seat after a long absence.
+    // The player can reclaim it on reconnect.
+    botControlled: false,
   };
   room.players.push(player);
   if (!room.hostId && !isBot) room.hostId = id;
   return player;
+}
+
+// Rebind an existing player slot (matched by token) to a new socket ID.
+// Returns the player or null if no match. Caller should also update
+// socketRoom and hostId tracking.
+export function rejoinPlayer(room, token, newSocketId) {
+  if (!token) return null;
+  const player = room.players.find((p) => p.token === token && !p.isBot);
+  if (!player) return null;
+  const oldId = player.id;
+  player.id = newSocketId;
+  player.connected = true;
+  if (room.hostId === oldId) room.hostId = newSocketId;
+  return { player, oldId };
 }
 
 export function removePlayer(room, id) {
@@ -371,6 +390,7 @@ export function viewFor(room, viewerId) {
       id: p.id,
       name: p.name,
       isBot: p.isBot,
+      botControlled: !!p.botControlled,
       connected: p.connected,
       handSize: p.hand.length,
       trios: p.trios.slice(),

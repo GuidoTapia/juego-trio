@@ -8,6 +8,7 @@ import {
   createRoom,
   addPlayer,
   removePlayer,
+  rejoinPlayer,
   startGame,
   applyReveal,
   resolveTurn,
@@ -34,6 +35,18 @@ const socketRoom = new Map(); // socketId -> code
 // or mismatched cards are returned). Long enough for someone who blinked to
 // still read the outcome.
 const RESOLVE_DELAY_MS = 2500;
+
+// How long a player can stay disconnected mid-game before a bot takes their
+// seat so the table isn't frozen. They can reclaim the seat on reconnect.
+// Overridable via env (used by tests to avoid a 30s wait).
+const BOT_TAKEOVER_MS = Number(process.env.BOT_TAKEOVER_MS) || 30_000;
+const takeoverTimers = new Map(); // playerToken -> timeout handle
+
+// A seat is auto-played when it's an actual bot OR a human whose seat a bot
+// has taken over after a long disconnect.
+function isAutoPlayed(player) {
+  return !!player && (player.isBot || player.botControlled);
+}
 
 function generateCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -67,7 +80,7 @@ function scheduleBotTurn(code) {
   const room = rooms.get(code);
   if (!room || room.phase !== "playing") return;
   const player = currentPlayer(room);
-  if (!player || !player.isBot) return;
+  if (!isAutoPlayed(player)) return;
   if (room.turn.pendingResolve) {
     setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
     return;
@@ -79,7 +92,9 @@ function doBotMove(code) {
   const room = rooms.get(code);
   if (!room || room.phase !== "playing") return;
   const player = currentPlayer(room);
-  if (!player || !player.isBot) return;
+  // Re-check at fire time: a human may have reclaimed their seat since this
+  // move was scheduled.
+  if (!isAutoPlayed(player)) return;
   if (room.turn.pendingResolve) {
     setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
     return;
@@ -116,14 +131,39 @@ function doResolve(code) {
   if (room.phase === "playing") scheduleBotTurn(code);
 }
 
+// Arm a timer: if the player (by token) is still away when it fires, hand
+// their seat to a bot so the game keeps moving.
+function scheduleBotTakeover(code, token) {
+  if (!token) return;
+  clearTimeout(takeoverTimers.get(token));
+  const timer = setTimeout(() => {
+    takeoverTimers.delete(token);
+    const room = rooms.get(code);
+    if (!room || room.phase !== "playing") return;
+    const p = room.players.find((x) => x.token === token);
+    if (!p || p.connected || p.botControlled) return;
+    p.botControlled = true;
+    pushSystemLog(room, "log.bot_takeover", { name: p.name });
+    broadcastRoom(code);
+    scheduleBotTurn(code); // in case it's already their turn
+  }, BOT_TAKEOVER_MS);
+  takeoverTimers.set(token, timer);
+}
+
+// Append a translatable system entry to a room's log (mirrors game.js pushLog).
+function pushSystemLog(room, i18nKey, params = {}) {
+  room.log.push({ t: Date.now(), kind: "system", i18nKey, params });
+  if (room.log.length > 200) room.log.shift();
+}
+
 io.on("connection", (socket) => {
-  socket.on("createRoom", ({ name }, cb) => {
+  socket.on("createRoom", ({ name, token }, cb) => {
     try {
       const trimmed = (name || "").trim();
       if (!trimmed) throw new Error("Nombre requerido");
       const code = generateCode();
       const room = createRoom(code, trimmed);
-      addPlayer(room, { id: socket.id, name: trimmed, isBot: false });
+      addPlayer(room, { id: socket.id, name: trimmed, isBot: false, token });
       rooms.set(code, room);
       socketRoom.set(socket.id, code);
       socket.join(code);
@@ -134,14 +174,39 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("joinRoom", ({ code, name }, cb) => {
+  socket.on("joinRoom", ({ code, name, token }, cb) => {
     try {
       const trimmed = (name || "").trim();
       if (!trimmed) throw new Error("Nombre requerido");
       const upper = (code || "").toUpperCase().trim();
       const room = rooms.get(upper);
       if (!room) throw new Error("Sala no encontrada");
-      addPlayer(room, { id: socket.id, name: trimmed, isBot: false });
+
+      // If the token matches a player that's already in this room, treat it
+      // as a reconnect and rebind their existing slot to this socket. This
+      // is what lets a refreshed tab or recovered connection resume cleanly.
+      if (token) {
+        const result = rejoinPlayer(room, token, socket.id);
+        if (result) {
+          socketRoom.delete(result.oldId);
+          socketRoom.set(socket.id, upper);
+          socket.join(upper);
+          // Cancel a pending bot takeover — they made it back in time.
+          clearTimeout(takeoverTimers.get(token));
+          takeoverTimers.delete(token);
+          cb?.({
+            ok: true,
+            code: upper,
+            rejoined: true,
+            // Tell the client whether a bot is currently holding their seat.
+            botControlled: !!result.player.botControlled,
+          });
+          broadcastRoom(upper);
+          return;
+        }
+      }
+
+      addPlayer(room, { id: socket.id, name: trimmed, isBot: false, token });
       socketRoom.set(socket.id, upper);
       socket.join(upper);
       cb?.({ ok: true, code: upper });
@@ -180,6 +245,23 @@ io.on("connection", (socket) => {
       const target = room.players.find((p) => p.id === playerId);
       if (!target || !target.isBot) throw new Error("No es un bot");
       removePlayer(room, playerId);
+      broadcastRoom(code);
+      cb?.({ ok: true });
+    } catch (e) {
+      cb?.({ ok: false, error: e.message });
+    }
+  });
+
+  socket.on("takeControl", (_, cb) => {
+    try {
+      const code = socketRoom.get(socket.id);
+      const room = rooms.get(code);
+      if (!room) throw new Error("Sala inexistente");
+      const player = room.players.find((p) => p.id === socket.id);
+      if (!player) throw new Error("No estás en la sala");
+      if (!player.botControlled) throw new Error("Ya tienes el control");
+      player.botControlled = false;
+      pushSystemLog(room, "log.control_resumed", { name: player.name });
       broadcastRoom(code);
       cb?.({ ok: true });
     } catch (e) {
@@ -261,7 +343,22 @@ function leave(socket) {
   socketRoom.delete(socket.id);
   const room = rooms.get(code);
   if (!room) return;
+  // Capture the player before removePlayer mutates their state.
+  const player = room.players.find((p) => p.id === socket.id);
   removePlayer(room, socket.id);
+
+  // Mid-game: arm a bot takeover so the table doesn't freeze on an absent
+  // player. (Already-bot-controlled seats keep their bot, no new timer.)
+  if (
+    room.phase === "playing" &&
+    player &&
+    !player.isBot &&
+    !player.botControlled &&
+    player.token
+  ) {
+    scheduleBotTakeover(code, player.token);
+  }
+
   // If the room has no connected humans, drop it after a short grace period.
   const humansLeft = room.players.filter((p) => !p.isBot && p.connected);
   if (humansLeft.length === 0) {
