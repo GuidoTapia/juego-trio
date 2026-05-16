@@ -33,6 +33,8 @@ export function createRoom(code, hostName, mode = DEFAULT_MODE) {
     turn: null,
     winner: null,
     log: [],
+    // Set by the server for tutorial rooms — skips the AFK turn takeover.
+    tutorial: false,
     // Public knowledge accumulated across turns: per playerId, the lowest/highest
     // numbers ever seen revealed from their hand (still in their hand because
     // the cards either belong to a failed turn or were observed before any trio
@@ -73,8 +75,12 @@ export function addPlayer(room, { id, name, isBot = false, token = null }) {
 }
 
 // Rebind an existing player slot (matched by token) to a new socket ID.
-// Returns the player or null if no match. Caller should also update
-// socketRoom and hostId tracking.
+// Returns the player or null if no match.
+//
+// The socket ID doubles as the player's identity throughout the room state
+// (turn reveals, knownEnds keys, hostId, winner). When it changes on reconnect
+// every reference must be re-pointed too — otherwise in-flight turn state
+// dangles and resolveTurn can't find the player, freezing the table.
 export function rejoinPlayer(room, token, newSocketId) {
   if (!token) return null;
   const player = room.players.find((p) => p.token === token && !p.isBot);
@@ -82,7 +88,17 @@ export function rejoinPlayer(room, token, newSocketId) {
   const oldId = player.id;
   player.id = newSocketId;
   player.connected = true;
+  if (oldId === newSocketId) return { player, oldId };
+
   if (room.hostId === oldId) room.hostId = newSocketId;
+  if (room.winner === oldId) room.winner = newSocketId;
+  for (const r of room.turn?.reveals || []) {
+    if (r.source === "player" && r.playerId === oldId) r.playerId = newSocketId;
+  }
+  if (room.knownEnds && Object.prototype.hasOwnProperty.call(room.knownEnds, oldId)) {
+    room.knownEnds[newSocketId] = room.knownEnds[oldId];
+    delete room.knownEnds[oldId];
+  }
   return { player, oldId };
 }
 
@@ -251,9 +267,12 @@ export function applyReveal(room, actorId, action) {
 
 // Finalize the turn: either return cards (mismatch) or award trio (success).
 // Then advance to next player. Returns the outcome string.
+//
+// Designed to never throw: a frozen turn is worse than a slightly-off one, so
+// any odd state is recovered by abandoning the turn cleanly.
 export function resolveTurn(room) {
-  if (!room.turn.pendingResolve && room.turn.reveals.length === 0) {
-    throw new Error("Nada que resolver");
+  if (!room.turn || (!room.turn.pendingResolve && room.turn.reveals.length === 0)) {
+    return null;
   }
   const target = room.turn.target;
   const reveals = room.turn.reveals;
@@ -276,6 +295,7 @@ export function resolveTurn(room) {
     }
     for (const [pid, idxs] of byPlayer) {
       const p = room.players.find((x) => x.id === pid);
+      if (!p) continue; // defensive: stale id — skip rather than crash
       idxs.sort((a, b) => b - a);
       for (const i of idxs) p.hand.splice(i, 1);
     }
@@ -313,7 +333,15 @@ export function resolveTurn(room) {
     pushLog(room, "fail", "log.fail", { reveals: reveals.map((r) => r.number).join(", ") });
     outcome = "fail";
   } else {
-    throw new Error("Resolución prematura");
+    // Inconclusive state (shouldn't happen). Abandon the turn cleanly: flip any
+    // revealed middle cards back so nothing is lost, and move on — never throw.
+    for (const r of reveals) {
+      if (r.source === "middle") {
+        const cell = room.middle[r.middleIndex];
+        if (cell) cell.faceUp = false;
+      }
+    }
+    outcome = "abort";
   }
 
   // Advance turn.

@@ -18,9 +18,14 @@ const BOT_NEXT_REVEAL_MS = 1100;
 
 // How long a player can be disconnected mid-game before a bot takes their seat.
 // Overridable via env (tests use a short value).
-const BOT_TAKEOVER_MS = Number(process.env.BOT_TAKEOVER_MS) || 30_000;
+const BOT_TAKEOVER_MS = Number(process.env.BOT_TAKEOVER_MS) || 15_000;
+
+// How long a connected player can sit on their turn doing nothing before a bot
+// takes over, so the table isn't stalled by an AFK player.
+const TURN_IDLE_MS = Number(process.env.TURN_IDLE_MS) || 30_000;
 
 const takeoverTimers = new Map(); // playerToken -> timeout handle
+const turnIdleTimers = new Map(); // roomCode  -> timeout handle
 
 let io = null;
 
@@ -43,17 +48,61 @@ export function broadcastRoom(code) {
   }
 }
 
-// If the current seat is auto-played, schedule its next step.
+// If the current seat is auto-played, schedule its next step. If it's a
+// connected human, start watching for inactivity instead.
 export function scheduleBotTurn(code) {
   const room = getRoom(code);
   if (!room || room.phase !== "playing") return;
-  if (!isAutoPlayed(currentPlayer(room))) return;
+  if (!isAutoPlayed(currentPlayer(room))) {
+    armTurnIdle(code);
+    return;
+  }
+  clearTurnIdle(code);
   if (room.turn.pendingResolve) {
     setTimeout(() => doResolve(code), RESOLVE_DELAY_MS);
     return;
   }
   const delay = room.turn.reveals.length === 0 ? BOT_FIRST_REVEAL_MS : BOT_NEXT_REVEAL_MS;
   setTimeout(() => doBotMove(code), delay);
+}
+
+function clearTurnIdle(code) {
+  clearTimeout(turnIdleTimers.get(code));
+  turnIdleTimers.delete(code);
+}
+
+// (Re)arm the inactivity watch for the current seat. Only humans who are
+// connected, on turn, and not already bot-controlled get watched — and never
+// in a tutorial room (the coachmark overlay legitimately blocks input).
+function armTurnIdle(code) {
+  clearTurnIdle(code);
+  const room = getRoom(code);
+  if (!room || room.phase !== "playing" || room.tutorial) return;
+  const player = currentPlayer(room);
+  if (!player || isAutoPlayed(player) || !player.connected) return;
+  const timer = setTimeout(() => {
+    turnIdleTimers.delete(code);
+    const r = getRoom(code);
+    if (!r || r.phase !== "playing") return;
+    const p = currentPlayer(r);
+    if (!p || isAutoPlayed(p) || !p.connected) return;
+    p.botControlled = true;
+    pushLog(r, "system", "log.afk_takeover", { name: p.name });
+    broadcastRoom(code);
+    scheduleBotTurn(code);
+  }, TURN_IDLE_MS);
+  turnIdleTimers.set(code, timer);
+}
+
+// Re-evaluate the idle watch after any human input (a reveal, reclaiming a
+// seat). Arms a fresh window if the turn continues; clears it otherwise.
+export function refreshTurnTimer(code) {
+  const room = getRoom(code);
+  if (room && room.turn && room.turn.pendingResolve) {
+    clearTurnIdle(code);
+  } else {
+    armTurnIdle(code);
+  }
 }
 
 function doBotMove(code) {
@@ -89,11 +138,14 @@ function doResolve(code) {
   try {
     resolveTurn(room);
   } catch (e) {
+    // resolveTurn is built not to throw; this is a last-resort guard so an
+    // unforeseen error can never leave the table frozen on pendingResolve.
     console.error("Resolve error:", e.message);
-    return;
+    room.turn = { reveals: [], target: null, pendingResolve: false };
   }
   broadcastRoom(code);
   if (room.phase === "playing") scheduleBotTurn(code);
+  else clearTurnIdle(code);
 }
 
 // Called after a human's reveal: if the turn is now ready to resolve, pace it.

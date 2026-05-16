@@ -30,6 +30,7 @@ import {
   scheduleResolveIfPending,
   scheduleBotTakeover,
   cancelBotTakeover,
+  refreshTurnTimer,
 } from "./orchestrator.js";
 
 const BOT_NAMES = ["Alan", "Babbage", "Lovelace", "Turing", "Hopper", "Knuth"];
@@ -46,11 +47,14 @@ function guard(cb, fn) {
 
 export function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
-    socket.on("createRoom", ({ name, token } = {}, cb) => guard(cb, () => {
+    socket.on("createRoom", ({ name, token, tutorial } = {}, cb) => guard(cb, () => {
       const trimmed = (name || "").trim();
       if (!trimmed) throw new Error("Nombre requerido");
       const code = generateCode();
       const room = createRoom(code, trimmed);
+      // Tutorial rooms skip the AFK takeover — the coachmark overlay blocks
+      // input while the new player reads it.
+      if (tutorial) room.tutorial = true;
       addPlayer(room, { id: socket.id, name: trimmed, isBot: false, token });
       addRoom(code, room);
       bindSocket(socket.id, code);
@@ -131,6 +135,7 @@ export function registerSocketHandlers(io) {
       player.botControlled = false;
       pushLog(room, "system", "log.control_resumed", { name: player.name });
       broadcastRoom(code);
+      refreshTurnTimer(code); // they're back at the wheel — restart the idle watch
       cb?.({ ok: true });
     }));
 
@@ -166,6 +171,7 @@ export function registerSocketHandlers(io) {
       applyReveal(room, socket.id, action);
       broadcastRoom(code);
       scheduleResolveIfPending(code);
+      refreshTurnTimer(code); // the player acted — reset their idle window
       cb?.({ ok: true });
     }));
 
