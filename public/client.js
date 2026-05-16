@@ -227,10 +227,37 @@ function renderLobby() {
   if (n < 3) hint.textContent = t("lobby.hint_need_more", { n: 3 - n });
   else if (!iAmHost) hint.textContent = t("lobby.hint_waiting_host");
   else hint.textContent = t("lobby.hint_ready", { n });
+
+  // Mode selector — only the host can change it; others see it locked.
+  const mode = state.mode || "simple";
+  for (const btn of document.querySelectorAll(".mode-btn")) {
+    const isActive = btn.dataset.mode === mode;
+    btn.classList.toggle("active", isActive);
+    btn.disabled = !iAmHost;
+    btn.onclick = iAmHost && !isActive
+      ? () => callOK("setMode", { mode: btn.dataset.mode })
+      : null;
+  }
+  $("mode-desc").textContent = iAmHost
+    ? t(mode === "spicy" ? "lobby.mode_spicy_desc" : "lobby.mode_simple_desc")
+    : t(mode === "spicy" ? "lobby.mode_spicy_desc" : "lobby.mode_simple_desc")
+        + " · " + t("lobby.mode_locked");
+
+  // The winning rule depends on the mode.
+  $("rule-win").innerHTML = t(mode === "spicy" ? "lobby.rule4_spicy" : "lobby.rule4_simple");
 }
 
 function renderGame() {
   $("game-code").textContent = state.code;
+
+  // Show the SPICY tag in the header when that mode is active.
+  const modeTag = $("mode-tag");
+  if (state.mode === "spicy") {
+    modeTag.textContent = t("game.mode_spicy_tag");
+    modeTag.style.display = "";
+  } else {
+    modeTag.style.display = "none";
+  }
 
   const me = state.players.find((p) => p.id === myId);
   const current = state.players.find((p) => p.id === state.currentPlayerId);
@@ -249,10 +276,13 @@ function renderGame() {
 
   const canAct = isMyTurn && !state.turn?.pendingResolve;
 
-  // Opponents area
+  // Opponents area — adaptive grid: at most 2 rows, columns = ceil(count/2),
+  // so 2 opponents stack in 1 column, 3-4 use 2 columns, 5 use 3.
   const oppEl = $("opponents");
   oppEl.innerHTML = "";
   const opponents = state.players.filter((p) => p.id !== myId);
+  const oppCols = Math.max(1, Math.ceil(opponents.length / 2));
+  oppEl.style.gridTemplateColumns = `repeat(${oppCols}, 170px)`;
   for (const p of opponents) {
     const isCurrent = p.id === state.currentPlayerId;
     const div = document.createElement("div");
@@ -331,6 +361,21 @@ function renderGame() {
     <span><strong>${escapeHTML(me?.name || "")}</strong> · ${t("game.cards_count", { n: me?.hand?.length ?? 0 })}</span>
     <span>${t("game.your_trios")} <span class="my-trios">${renderTrios(me?.trios || [])}</span></span>
   `;
+
+  // Spicy-mode hint: which trios to chase, given the ones already collected.
+  const spicyHint = $("spicy-hint");
+  if (state.mode === "spicy" && state.phase === "playing") {
+    const myTrios = me?.trios || [];
+    if (myTrios.length === 0) {
+      spicyHint.innerHTML = t("game.spicy_hint_first");
+    } else {
+      const targets = spicyTargets(myTrios);
+      spicyHint.innerHTML = t("game.spicy_hint_targets", { nums: targets.join(", ") });
+    }
+    spicyHint.hidden = false;
+  } else {
+    spicyHint.hidden = true;
+  }
   const handEl = $("me-hand");
   handEl.innerHTML = "";
   if (me?.hand) {
@@ -378,9 +423,16 @@ function renderGame() {
     $("winner-title").textContent = w?.id === myId
       ? t("winner.title_self")
       : t("winner.title_other", { name: w?.name ?? "?" });
-    $("winner-detail").textContent = w?.trios?.includes(7)
-      ? t("winner.detail_seven")
-      : t("winner.detail_three");
+    if (w?.trios?.includes(7)) {
+      $("winner-detail").textContent = t("winner.detail_seven");
+    } else if (state.mode === "spicy") {
+      const pair = findConnectedPair(w?.trios || []);
+      $("winner-detail").textContent = pair
+        ? t("winner.detail_connected", { a: pair[0], b: pair[1] })
+        : t("winner.detail_three");
+    } else {
+      $("winner-detail").textContent = t("winner.detail_three");
+    }
     overlay.classList.remove("hidden");
     $("btn-play-again").disabled = state.hostId !== myId;
   } else {
@@ -456,12 +508,13 @@ function countOwnReveals(which) {
   return c;
 }
 
-// Reasonable row layout for the middle pile:
-//   even count  -> 2 rows (cols = N/2)
-//   odd multiple of 3 -> 3 rows (cols = N/3)
-//   anything else -> roughly square (ceil(sqrt))
+// Column count for the middle pile.
+//   Desktop — the center column is narrow but tall, so use fewer, taller
+//   columns: 2 for 6/8 cards, 3 for 9.
+//   Mobile — wider grids to limit vertical scrolling (6→3, 8→4, 9→3).
 function middleColumns(n) {
   if (n <= 0) return 1;
+  if (window.innerWidth > 700) return n >= 9 ? 3 : 2;
   if (n % 2 === 0) return n / 2;
   if (n % 3 === 0) return n / 3;
   return Math.ceil(Math.sqrt(n));
@@ -517,11 +570,45 @@ function computeAvailableForPlayer(pid) {
   return { lowestUsable: true, highestUsable: true };
 }
 
+// Spicy connection: two trio numbers are linked if they add up to 7 or differ
+// by 7 (mirrors server/modes.js areConnected).
+function areConnected(a, b) {
+  return a + b === 7 || Math.abs(a - b) === 7;
+}
+
+// First connected pair within a set of trio numbers, or null.
+function findConnectedPair(trios) {
+  for (let i = 0; i < trios.length; i++) {
+    for (let j = i + 1; j < trios.length; j++) {
+      if (areConnected(trios[i], trios[j])) return [trios[i], trios[j]];
+    }
+  }
+  return null;
+}
+
+// Numbers that, completed as a trio, would connect to one the player already
+// has — i.e. the trios worth chasing to win in spicy mode.
+function spicyTargets(myTrios) {
+  const targets = new Set();
+  for (const trio of myTrios) {
+    for (let n = 1; n <= 12; n++) {
+      if (!myTrios.includes(n) && areConnected(trio, n)) targets.add(n);
+    }
+  }
+  return [...targets].sort((a, b) => a - b);
+}
+
 function renderTrios(trios) {
+  const spicy = state?.mode === "spicy";
   return trios
-    .map((n) => {
+    .map((n, i) => {
       const card = `<div class="trio-card" style="background-image:url('/cartas/carta-trio-${n}.webp')"></div>`;
-      return `<div class="trio-group ${n === 7 ? "seven" : ""}" title="Trio del ${n}">${card}${card}${card}</div>`;
+      const classes = ["trio-group"];
+      if (n === 7) classes.push("seven");
+      const connected = spicy && trios.some((m, j) => j !== i && areConnected(n, m));
+      if (connected) classes.push("connected");
+      const title = connected ? t("game.connected_title") : `Trio ${n}`;
+      return `<div class="${classes.join(" ")}" title="${title}">${card}${card}${card}</div>`;
     })
     .join(" ");
 }
@@ -699,6 +786,18 @@ $("tutorial-prev").onclick = prevTutorial;
 document.addEventListener("trio:lang-changed", () => {
   if (state) render();
   if (!$("tutorial-overlay").classList.contains("hidden")) renderTutorial();
+});
+
+// Re-render on resize (rAF-throttled) so the middle-grid column count adapts
+// when crossing the mobile/desktop breakpoint.
+let resizeQueued = false;
+window.addEventListener("resize", () => {
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => {
+    resizeQueued = false;
+    if (state && state.phase !== "lobby") render();
+  });
 });
 
 /* =================== In-game coachmarks =================== */

@@ -6,21 +6,41 @@ Solo se ha implementado el **modo simple**: gana quien primero junte 3 trios o e
 
 ## Estructura
 
+El servidor está en capas: el dominio (reglas puras) no conoce sockets ni
+timers; la orquestación vive aparte; los handlers de socket son solo la API.
+
 ```
 .
 ├── server/
-│   ├── index.js       Express + Socket.IO, orquesta partidas y bots
-│   ├── game.js        Lógica pura del juego (deck, turnos, trios)
-│   ├── bot.js         IA con memoria pública de extremos revelados
-│   └── test-sim.js    Simulaciones bot-vs-bot para verificar la lógica
+│   ├── index.js            Bootstrap: Express + estáticos + Socket.IO
+│   ├── socket-handlers.js  Capa API: traduce eventos de socket a llamadas
+│   ├── orchestrator.js     Timers, turnos de bots, takeover, broadcast
+│   ├── rooms.js            Registro de salas en memoria + códigos
+│   ├── game.js             Máquina de estado pura del juego (sin I/O)
+│   ├── modes.js            Reglas por modo (reparto + condición de victoria)
+│   ├── bot.js              IA con memoria pública de extremos revelados
+│   └── test-*.js           Tests: sim, e2e, rejoin, takeover
 ├── public/
-│   ├── index.html     Vista única (lobby + sala + mesa)
-│   ├── style.css      Estilos
-│   ├── client.js      Cliente Socket.IO + rendering
-│   └── cartas/        carta-trio-1.png … carta-trio-12.png
-├── cartas/            Originales (alta resolución, no se sirven al web)
+│   ├── index.html          Vista única (home + sala + mesa)
+│   ├── style.css           Estilos
+│   ├── client.js           Cliente Socket.IO + rendering
+│   ├── i18n.js             Traducciones (en / es) y helper t()
+│   ├── trio-logo.webp      Logo
+│   └── cartas/             carta-trio-1.webp … carta-trio-12.webp
+├── scripts/
+│   └── process-cards.mjs   Pipeline de imágenes (PNG → WebP estandarizado)
+├── cartas/                 Originales en alta resolución (no se sirven)
 └── package.json
 ```
+
+### Modos de juego
+
+`server/modes.js` define cada modo con su `checkWin(trios)`. Añadir un modo es
+añadir una entrada a `MODES`; el resto del motor es agnóstico al modo.
+
+- **simple** — gana con 3 trios o el trio del 7.
+- **spicy** — gana con 2 trios *conectados* o el trio del 7. Dos números están
+  conectados si suman 7 o se diferencian en 7 (1↔6, 1↔8, 4↔3, 4↔11, …).
 
 ## Cómo ejecutar localmente
 
@@ -83,8 +103,8 @@ Funcionan igual: build = `npm install`, start = `npm start`.
 
 ## Lo que falta / no implementado
 
-- **Spicy mode** (trios conectados por los números de las esquinas).
+- **Spicy mode**: la lógica de victoria ya existe en `modes.js`, falta el
+  selector de modo en la sala para poder elegirlo.
 - **Team variant** (4 ó 6 jugadores en equipos con swap inicial).
-- Reconexión automática tras perder la red (si te desconectas y vuelves, ahora mismo entras como nuevo jugador).
-- Persistencia de salas (todas viven en memoria).
+- Persistencia de salas (todas viven en memoria del proceso).
 - Sonido / animaciones más elaboradas.

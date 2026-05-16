@@ -55,7 +55,7 @@ while (Date.now() < deadline && !done) {
 
 console.log("\nLast state phase:", states[states.length - 1]?.phase);
 console.log("Total state updates:", states.length);
-console.log("Last 3 log entries:", (states[states.length - 1]?.log || []).slice(-3).map((e) => e.text));
+console.log("Last 3 log entries:", (states[states.length - 1]?.log || []).slice(-3).map((e) => e.i18nKey));
 
 sock.disconnect();
 server.kill();

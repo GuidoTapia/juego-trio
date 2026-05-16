@@ -1,18 +1,16 @@
-// Pure game logic for Trio (simple mode).
-// All functions operate on a `room` object: they mutate it and append events to room.log.
+// Pure game state machine for Trio.
+//
+// Mode-blind: how a win is detected and how many cards are dealt come from
+// ./modes.js. Every function operates on a `room` object, mutating it and
+// appending events to room.log. No I/O, no timers — see orchestrator.js.
+
+import { DEAL_TABLE, MODES, DEFAULT_MODE, isValidMode, winLogKey } from "./modes.js";
 
 const DECK = (() => {
   const cards = [];
   for (let n = 1; n <= 12; n++) for (let i = 0; i < 3; i++) cards.push(n);
   return cards;
 })();
-
-const DEAL_TABLE = {
-  3: { perPlayer: 9, middle: 9 },
-  4: { perPlayer: 7, middle: 8 },
-  5: { perPlayer: 6, middle: 6 },
-  6: { perPlayer: 5, middle: 6 },
-};
 
 function shuffled(arr) {
   const a = arr.slice();
@@ -23,11 +21,11 @@ function shuffled(arr) {
   return a;
 }
 
-export function createRoom(code, hostName) {
+export function createRoom(code, hostName, mode = DEFAULT_MODE) {
   return {
     code,
     phase: "lobby",
-    mode: "simple",
+    mode: isValidMode(mode) ? mode : DEFAULT_MODE,
     hostId: null,
     players: [],
     middle: [],
@@ -42,6 +40,13 @@ export function createRoom(code, hostName) {
     knownEnds: {},
     createdAt: Date.now(),
   };
+}
+
+// Change the game mode. Only allowed while still in the lobby.
+export function setMode(room, mode) {
+  if (room.phase !== "lobby") throw new Error("La partida ya empezó");
+  if (!isValidMode(mode)) throw new Error("Modo inválido");
+  room.mode = mode;
 }
 
 export function addPlayer(room, { id, name, isBot = false, token = null }) {
@@ -135,7 +140,9 @@ export function currentPlayer(room) {
   return room.players[room.currentPlayerIndex];
 }
 
-function pushLog(room, kind, i18nKey, params = {}) {
+// Append a translatable event to the room log. Exported so the orchestrator
+// can record its own system events (bot takeover, etc.) the same way.
+export function pushLog(room, kind, i18nKey, params = {}) {
   room.log.push({ t: Date.now(), kind, i18nKey, params });
   if (room.log.length > 200) room.log.shift();
 }
@@ -284,15 +291,12 @@ export function resolveTurn(room) {
     pushLog(room, "trio", "log.trio_completed", { name: winner.name, number: target });
     outcome = "trio";
 
-    if (target === 7 || winner.trios.length >= 3) {
+    // Win detection is delegated to the active mode.
+    const winReason = MODES[room.mode].checkWin(winner.trios);
+    if (winReason) {
       room.phase = "ended";
       room.winner = winner.id;
-      pushLog(
-        room,
-        "win",
-        target === 7 ? "log.win_seven" : "log.win_three",
-        { name: winner.name }
-      );
+      pushLog(room, "win", winLogKey(winReason), { name: winner.name });
     }
   } else if (last && reveals.length >= 2 && last.number !== target) {
     // Mismatch: return all revealed cards to their origins.
@@ -328,6 +332,22 @@ function advanceTurn(room) {
   // Always advance to the next index. Even if hand is empty, the player can still play
   // using the middle and opponents' cards (per rules).
   room.currentPlayerIndex = (room.currentPlayerIndex + 1) % n;
+}
+
+// Send a finished room back to the lobby for a rematch, keeping the same
+// players (and their tokens / bot-control flags reset).
+export function resetToLobby(room) {
+  room.phase = "lobby";
+  room.winner = null;
+  room.middle = [];
+  room.turn = null;
+  room.log = [];
+  room.knownEnds = {};
+  for (const p of room.players) {
+    p.hand = [];
+    p.trios = [];
+    p.botControlled = false;
+  }
 }
 
 function recordKnownEnds(room, reveals) {

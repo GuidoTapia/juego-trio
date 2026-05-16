@@ -307,6 +307,52 @@ button.ghost {
   font-size: 12px;
 }
 
+.mode-select {
+  margin: 14px 0 4px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+.mode-select-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #888;
+}
+.mode-options {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.mode-btn {
+  flex: 1;
+  background: white;
+  border: 2px solid #d8cda6;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-weight: 700;
+  color: #777;
+}
+.mode-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+.mode-btn:disabled {
+  cursor: default;
+}
+.mode-btn:not(.active):not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mode-desc {
+  font-size: 12px;
+  color: #777;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
 .lobby-actions {
   display: flex;
   gap: 10px;
@@ -325,20 +371,33 @@ button.ghost {
 }
 .table {
   flex: 1;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
   gap: 8px;
   min-height: 0;
 }
 
-/* Opponents row */
+/* Desktop play area: opponents | table center | log, side by side so the
+   vertical stack never overlaps and the log gets a real home. The opponents
+   column is `auto` — it grows to fit its adaptive grid. */
+.play-area {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto 1fr minmax(160px, 220px);
+  gap: 12px;
+}
+
+/* Opponents: an adaptive grid (column count set from JS by player count) so
+   they never need to scroll — at most two rows. */
 .opponents {
-  display: flex;
+  display: grid;
+  gap: 10px;
+  align-content: center;
   justify-content: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  min-height: 0;
+  overflow-y: auto;
 }
 .opponent {
   background: white;
@@ -453,6 +512,23 @@ button.ghost {
   border-color: var(--orange);
   box-shadow: 0 0 6px rgba(255, 126, 58, 0.5);
 }
+/* Spicy mode: trios that form a connected (winning) pair. */
+.trio-group.connected {
+  border-color: var(--green);
+  background: rgba(92, 184, 92, 0.22);
+  box-shadow: 0 0 7px rgba(92, 184, 92, 0.6);
+}
+.spicy-tag {
+  display: inline-block;
+  background: var(--orange);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
 .trio-card {
   width: 22px;
   height: 32px;
@@ -464,15 +540,18 @@ button.ghost {
 .me-area .trio-card { width: 30px; height: 44px; }
 .me-area .trio-group { padding: 4px; gap: 3px; }
 
-/* Center area */
+/* Center area — middle grid + reveal strip side by side, centred in the
+   (now generously tall) center column. */
 .center-area {
   display: flex;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   gap: 18px;
   min-height: 0;
   flex-wrap: wrap;
+  align-content: center;
+  overflow-y: auto;
 }
 .reveal-strip {
   background: white;
@@ -552,7 +631,7 @@ button.ghost {
   visibility: hidden;
 }
 
-/* My area */
+/* My area — full-width strip pinned below the play area. */
 .me-area {
   display: flex;
   flex-direction: column;
@@ -562,6 +641,7 @@ button.ghost {
   border-radius: 14px;
   padding: 12px;
   box-shadow: var(--shadow);
+  flex-shrink: 0;
 }
 .me-info {
   display: flex;
@@ -570,6 +650,18 @@ button.ghost {
   font-weight: 600;
   font-size: 14px;
 }
+/* Spicy-mode hint about which trios to chase next. */
+.spicy-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 126, 58, 0.16);
+  border: 1.5px solid var(--orange);
+  border-radius: 999px;
+  padding: 5px 14px;
+}
+.spicy-hint[hidden] { display: none; }
+.spicy-hint b { color: var(--orange); }
 .me-info .my-trios {
   display: flex;
   gap: 4px;
@@ -694,21 +786,18 @@ button.ghost {
 }
 
 /* =================== LOG =================== */
+/* Desktop: the right column of the play area. */
 .log {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  width: 240px;
-  max-height: 30vh;
   overflow-y: auto;
-  background: rgba(0,0,0,0.85);
+  min-height: 0;
+  background: rgba(0, 0, 0, 0.85);
   color: white;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
   font-size: 12px;
   line-height: 1.4;
-  z-index: 5;
 }
+.log .entry:first-child { margin-top: 0; }
 .log .entry {
   margin-bottom: 4px;
   padding-bottom: 4px;
@@ -731,20 +820,35 @@ button.ghost {
   .table {
     padding: 8px;
     gap: 6px;
-    /* Grid: opponents (auto) | center (1fr, scroll) | me-area (auto) */
+  }
+  /* Mobile: stack the three regions; only the center scrolls. */
+  .play-area {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
   }
   .opponents {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
     gap: 6px;
-    padding-bottom: 4px;
+    overflow-y: visible;
+    flex-shrink: 0;
   }
   .center-area {
+    flex: 1;
     overflow-y: auto;
     align-items: flex-start;
     gap: 8px;
     padding: 4px;
     min-height: 0;
-    /* Keep middle + reveal strip side-by-side; let wrap kick in only if the
-       middle grid is genuinely too wide for the viewport. */
+  }
+  .log {
+    flex-shrink: 0;
+    max-height: 56px;
   }
   .me-area {
     padding: 8px;
@@ -805,16 +909,8 @@ button.ghost {
   .hand .card:last-child { margin-right: 0; }
   .actions { min-height: 0; font-size: 12px; }
   .actions .group-label { font-size: 11px; text-align: center; }
-
-  /* Log goes inline, very compact, below the topbar status */
-  .log {
-    position: static;
-    width: auto;
-    margin: 6px 8px 0;
-    max-height: 60px;
-    font-size: 11px;
-    padding: 6px 8px;
-  }
+  .log { font-size: 11px; padding: 6px 8px; }
+  .spicy-hint { font-size: 12px; padding: 4px 10px; }
 }
 
 @media (max-width: 380px) {

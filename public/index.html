@@ -56,6 +56,16 @@
         <div class="players-panel">
           <h2 data-i18n="lobby.players"></h2>
           <ul id="lobby-players" class="player-list"></ul>
+
+          <div class="mode-select">
+            <span class="mode-select-label" data-i18n="lobby.mode_label"></span>
+            <div class="mode-options">
+              <button class="mode-btn" data-mode="simple" data-i18n="lobby.mode_simple"></button>
+              <button class="mode-btn" data-mode="spicy" data-i18n="lobby.mode_spicy"></button>
+            </div>
+            <p id="mode-desc" class="mode-desc"></p>
+          </div>
+
           <div class="lobby-actions">
             <button id="btn-add-bot" class="ghost" data-i18n="lobby.add_bot"></button>
             <button id="btn-start" class="primary" data-i18n="lobby.start_game"></button>
@@ -68,7 +78,7 @@
             <li data-i18n="lobby.rule1"></li>
             <li data-i18n="lobby.rule2"></li>
             <li data-i18n="lobby.rule3"></li>
-            <li data-i18n="lobby.rule4"></li>
+            <li id="rule-win"></li>
           </ol>
         </div>
       </div>
@@ -77,7 +87,10 @@
     <!-- Game screen -->
     <section id="screen-game" class="screen">
       <header class="topbar">
-        <div class="room-code"><span data-i18n="topbar.room"></span> <span id="game-code" class="code"></span></div>
+        <div class="room-code">
+          <span data-i18n="topbar.room"></span> <span id="game-code" class="code"></span>
+          <span id="mode-tag" class="spicy-tag" style="display:none"></span>
+        </div>
         <div id="turn-banner" class="turn-banner"></div>
         <div class="topbar-right">
           <select class="lang-select" title="Language" aria-label="Language"></select>
@@ -91,19 +104,25 @@
       </div>
 
       <div class="table">
-        <div id="opponents" class="opponents"></div>
+        <!-- Desktop: 3 columns (opponents | table | log). Mobile: stacked. -->
+        <div class="play-area">
+          <div id="opponents" class="opponents"></div>
 
-        <div class="center-area">
-          <div id="middle" class="middle"></div>
-          <aside class="reveal-strip">
-            <div id="reveal-label" class="reveal-label" data-i18n="game.reveal_label_waiting"></div>
-            <div id="reveal-row" class="reveal-row"></div>
-            <div id="reveal-result" class="reveal-result"></div>
-          </aside>
+          <div class="center-area">
+            <div id="middle" class="middle"></div>
+            <aside class="reveal-strip">
+              <div id="reveal-label" class="reveal-label" data-i18n="game.reveal_label_waiting"></div>
+              <div id="reveal-row" class="reveal-row"></div>
+              <div id="reveal-result" class="reveal-result"></div>
+            </aside>
+          </div>
+
+          <aside id="log" class="log"></aside>
         </div>
 
         <div class="me-area">
           <div id="me-info" class="me-info"></div>
+          <div id="spicy-hint" class="spicy-hint" hidden></div>
           <div class="me-hand-row">
             <button id="me-btn-low" class="me-btn" data-i18n="game.actions.my_low"></button>
             <div id="me-hand" class="hand"></div>
@@ -112,8 +131,6 @@
           <div id="actions" class="actions"></div>
         </div>
       </div>
-
-      <aside id="log" class="log"></aside>
 
       <div id="winner-overlay" class="overlay hidden">
         <div class="overlay-card">
